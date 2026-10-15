@@ -24,7 +24,8 @@ begin
       'send_to', 'risingtideoperations@gmail.com', 'send_from', 'rob3fhome@gmail.com',
       'subject', '3F UPDATE <date>', 'read_at', '7 AM and 5 PM Central',
       'body', 'One ```json fenced block: {"houses":[{"address":...,"<field>":<value>,...}]}. Only send fields you know; null never erases. Numbers plain, dates YYYY-MM-DD.',
-      'stages', jsonb_build_array('Under Contract','Closed','Renovating','Listed','Sale Pending','Sold'),
+      'stages', jsonb_build_array('Under Contract','Closed','Make-Ready','Listed As-Is','Renovating','Listed','Sale Pending','Sold'),
+      'flow', 'Under Contract -> Closed -> Make-Ready (~10 days, ~$1k cleanup) -> Listed As-Is (30 days) -> if unsold: Renovating (45-60 days) -> Listed -> Sale Pending -> Sold',
       'sale_splits', 'list of {"who","basis":"sale"|"fixed"|"profit","pct" or "amount"}; sale/fixed come off the top, profit % applies to what is left'),
     'houses', (select coalesce(jsonb_agg(jsonb_build_object(
         'address', d.address, 'stage', d.stage,

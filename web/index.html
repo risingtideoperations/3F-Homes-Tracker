@@ -98,9 +98,9 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storage: 
 const db = sb.schema('flips');
 const root = document.getElementById('root');
 
-const STAGES = ['Under Contract','Closed','Renovating','Listed','Sale Pending','Sold'];
-const STAGE_DATE = ['under_contract_date','purchase_close_date','reno_start_date','list_date','sale_contract_date','sale_close_date'];
-const STAGE_CHIP = {'Under Contract':'','Closed':'','Renovating':'warn','Listed':'','Sale Pending':'ok','Sold':'ok'};
+const STAGES = ['Under Contract','Closed','Make-Ready','Listed As-Is','Renovating','Listed','Sale Pending','Sold'];
+const STAGE_DATE = ['under_contract_date','purchase_close_date','purchase_close_date','list_date','reno_start_date','list_date','sale_contract_date','sale_close_date'];
+const STAGE_CHIP = {'Under Contract':'','Closed':'','Make-Ready':'warn','Listed As-Is':'','Renovating':'warn','Listed':'','Sale Pending':'ok','Sold':'ok'};
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n = v => (v === null || v === undefined || v === '') ? null : Number(v);
@@ -210,9 +210,10 @@ function shell() {
 
 const GROUPS = [
   ['Under contract', 'Under contract to buy', 'Closing', 'purchase_close_date'],
-  ['Owned, not started', 'Owned — not started yet', 'Bought', 'purchase_close_date'],
-  ['In renovation', 'In renovation', 'Reno done', 'reno_end_date'],
-  ['For sale', 'For sale', 'Sale closing', 'sale_close_date'],
+  ['Owned: make-ready + as-is', 'Owned: make-ready (~10 days) + as-is listing (30 days)', 'Phase', 'phase'],
+  ['In renovation', 'In renovation (45–60 days)', 'Phase', 'phase'],
+  ['Listed after reno', 'Listed after reno', 'Listed', 'list_date'],
+  ['Sale pending', 'Sale pending', 'Sale closing', 'sale_close_date'],
   ['Sold', 'Sold', 'Sold', 'sale_close_date']
 ];
 function pipeline() {
@@ -286,6 +287,13 @@ function missingTable() {
       <td>${(x.missing||[]).length ? (x.missing||[]).map(m => `<span class="chip warn" title="${esc(m.why)}" style="margin:2px 4px 2px 0">${esc(FIELD_LBL[m.field] || m.field)}</span>`).join('') : '<span class="chip ok">complete</span>'}</td></tr>`).join('')}
     </tbody></table></div></div>`;
 }
+function phaseCell(h) {
+  const lbl = {'Closed':'Make-ready','Make-Ready':'Make-ready','Listed As-Is':'As-is listing','Renovating':'Renovation'}[h.stage] || h.stage;
+  if (h.phase_day === null || h.phase_day === undefined) return `<b>${lbl}</b><div class="sm mut">${h.stage==='Renovating'?'no reno start date':h.stage==='Listed As-Is'?'no list date':'no close date'}</div>`;
+  const late = h.phase_target_days && h.phase_day > h.phase_target_days;
+  const due = h.stage==='Listed As-Is' ? 'decide reno by ' : 'due ';
+  return `<b>${lbl}</b><div class="sm ${late?'neg b':'mut'}">day ${h.phase_day}${h.phase_target_days?' of '+h.phase_target_days:''}${h.phase_due?' · '+due+md(h.phase_due):''}</div>`;
+}
 const buyIn = h => (n(h.purchase_price)||0) + (n(h.est_buy_closing_costs)||0);
 function prog(h) { return `<span class="prog" title="${esc(h.stage)}">${STAGES.map((s,i) => `<i class="${i+1 <= h.stage_no ? 'd' : ''}"></i>`).join('')}</span>`; }
 
@@ -309,7 +317,7 @@ function housesTable(list, title, o = {}) {
       const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : 0, chg = n(h.profit_change);
       return `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td>
         ${o.showStage?`<td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td>`:''}
-        ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':h.funded===false?'not funded':'funding unknown'}</div>` : ''}${o.keyCol==='sale_close_date' && h.stage!=='Sold' ? (h.sale_close_date ? `<div class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - pd(new Date().toISOString().slice(0,10))) / 864e5))}</div>` : `<div class="sm mut">${h.stage==='Listed' ? 'listed, no contract' : 'no date yet'}</div>`) : ''}</td>`:''}
+        ${o.keyCol==='phase'?`<td>${phaseCell(h)}</td>`:''}${o.keyLbl && o.keyCol!=='phase'?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':h.funded===false?'not funded':'funding unknown'}</div>` : ''}${o.keyCol==='sale_close_date' && h.stage!=='Sold' ? (h.sale_close_date ? `<div class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - pd(new Date().toISOString().slice(0,10))) / 864e5))}</div>` : `<div class="sm mut">${h.stage==='Listed' ? 'listed, no contract' : 'no date yet'}</div>`) : ''}</td>`:''}
         <td>${prog(h)}</td>
         <td class="r">${money(buyIn(h))}</td>
         <td class="r">${money(h.reno_scope)}</td>

@@ -41,7 +41,7 @@ begin
     begin
       for h in select * from jsonb_array_elements(p->'parsed'->'houses') loop
         if nullif(btrim(h->>'address'), '') is null then continue; end if;
-        stg := case when h->>'stage' in ('Under Contract','Closed','Renovating','Listed','Sale Pending','Sold')
+        stg := case when h->>'stage' in ('Under Contract','Closed','Make-Ready','Listed As-Is','Renovating','Listed','Sale Pending','Sold')
                     then h->>'stage' end;
         select id into hid from flips.houses where lower(address) = lower(btrim(h->>'address'));
         if hid is null then
