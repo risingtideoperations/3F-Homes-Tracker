@@ -296,14 +296,14 @@ function housesTable(list, title, o = {}) {
     <th class="r" title="Commissions, fees, partner and investor shares">Splits</th>
     <th class="r">${isSold?'Real profit':'Real profit (proj.)'}</th><th>Last update from Rob</th></tr></thead><tbody>
     ${list.map(h => {
-      const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : (spent ? 101 : 0), chg = n(h.profit_change);
+      const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : 0, chg = n(h.profit_change);
       return `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td>
         ${o.showStage?`<td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td>`:''}
         ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':'not funded'}</div>` : ''}</td>`:''}
         <td>${prog(h)}</td>
         <td class="r">${money(buyIn(h))}</td>
         <td class="r">${money(h.reno_scope)}</td>
-        <td class="r" style="white-space:nowrap">${money(spent,'$0')}<span class="mbar"><i style="width:${Math.min(100,pct)}%;background:${budgetColor(pct)}"></i></span>${n(h.reno_over)>0?`<div class="sm neg">${money(h.reno_over)} over</div>`:''}</td>
+        <td class="r" style="white-space:nowrap">${money(spent,'$0')}<span class="mbar"><i style="width:${Math.min(100,pct)}%;background:${budgetColor(pct)}"></i></span>${scope && n(h.reno_over)>0?`<div class="sm neg">${money(h.reno_over)} over</div>`:(!scope && spent ? '<div class="sm mut">no scope yet</div>' : '')}</td>
         <td class="r">${money(h.other_costs,'$0')}</td><td class="r">${money(h.total_budget)}</td>
         <td class="r">${money(h.sale_price_used)}${!h.sale_price && h.target_sale_price ? '<div class="sm mut">target</div>' : ''}</td>
         <td class="r">${money(h.gross_profit)}</td>
@@ -317,7 +317,7 @@ function housesTable(list, title, o = {}) {
 function openHouse(id) {
   const h = D.H.find(x => x.id === id); if (!h) return;
   const cl = D.C[id] || [], hl = D.U[id] || [];
-  const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : (spent ? 101 : 0), chg = n(h.profit_change);
+  const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : 0, chg = n(h.profit_change);
   const tl = STAGES.map((s,i) => { const no = i+1, done = no <= h.stage_no;
     return `<div class="${done?'d':''} ${no===h.stage_no?'c':''}"><i></i><b>${s}</b><br>${done && i>0 && h[STAGE_DATE[i]] ? mdy(h[STAGE_DATE[i]]) : '&nbsp;'}</div>`; }).join('');
   const byVendor = {}; cl.forEach(c => { const k = c.vendor || 'Other'; byVendor[k] = (byVendor[k]||0) + (n(c.amount)||0); });
