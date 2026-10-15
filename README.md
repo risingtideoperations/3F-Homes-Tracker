@@ -13,10 +13,16 @@ Read-only dashboard of every 3F Homes flip, from purchase contract to sale. View
     2. Meridian `fetch_quickbooks_report` general_ledger, accounts 4001 (id 1) + 4002 Markup (id 49), the 3F job customers, from that date to today, `delivery: download`, columns tx_date, txn_type, doc_num, name, memo, subt_nat_amount. Download the JSON.
     3. `python3 -I scripts/gl_rows.py gl.json rows.json` folds each expense + its markup line into one cost row.
     4. `python3 -I scripts/load_rows.py rows.json` upserts in whole-invoice batches, rematches, snapshots, and advances `qb_last_run`.
+    5. Charges billed to a 3F job but not invoiced yet (Renovation Depot invoices on Saturdays): Meridian `ReimburseCharge WHERE HasBeenInvoiced = false` -> `flips.replace_pending_charges()` (full list each run; rows `rc<Id>`, shown as "Not invoiced yet").
     First full backfill 10/15/2026: 1,242 rows, $1,116,002.44 (matches the QuickBooks GL to the penny).
   - Backup: n8n "3F Flips — QuickBooks pull" (`wEjcUckQiC3mZtkw`, unpublished) does the same through an n8n QuickBooks credential if one is ever connected.
+
+## For Rob's Claude (read-only agent feed)
+`GET https://risingtideoperations.app.n8n.cloud/webhook/3f-flips-gaps?k=<key>` returns every house, what the tracker has, what's missing (`flips.gaps`) and the QuickBooks jobs not in the tracker. Keys live in `flips.agent_keys` (service-only); delete a row to revoke. The same list is the page's **Missing info** tab.
 
 ## Rules baked in
 - Cost = what Renovation Depot invoices 3F (expense + markup). Vendor bills are NOT counted: they are the same dollars before markup.
 - QB -> house match is exact on house number + first street word. Anything else stays unmatched (`flips.costs.house_id is null`) until an exact match exists.
+- `funded` can be unknown (null). Unknown still triggers the one-time 7-day alert.
+- Manual fills are logged in `flips.updates` as `manual-...`; they show in history but never as "Last update from Rob".
 - Projected profit counts the larger of reno scope and reno spent (unspent budget is still a cost). Sold houses use actual spent.

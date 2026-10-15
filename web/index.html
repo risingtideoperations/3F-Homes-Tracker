@@ -162,13 +162,14 @@ async function signOut() { await sb.auth.signOut(); history.replaceState(null, '
 // ---------- data ----------
 let D = null, TAB = 'overview';
 async function load() {
-  const [sum, dash, sched, costs, hist, me] = await Promise.all([
+  const [sum, dash, sched, costs, hist, me, gaps] = await Promise.all([
     db.from('summary').select('*').maybeSingle(),
     db.from('dashboard').select('*'),
     db.from('cash_schedule').select('*').order('week_no'),
     db.from('costs').select('house_id,txn_date,vendor,memo,amount,qb_doc_type').not('house_id','is',null).order('txn_date',{ascending:false}),
     db.from('house_history').select('house_id,received_at,note,status').order('received_at',{ascending:false}),
-    db.from('allowed_viewers').select('email', { count: 'exact', head: true })
+    db.from('allowed_viewers').select('email', { count: 'exact', head: true }),
+    db.from('gaps').select('id,address,stage,stage_no,missing,missing_count')
   ]);
   const err = [sum,dash,sched,costs,hist].find(r => r.error);
   if (err) { root.innerHTML = `<main style="max-width:420px;margin-top:60px"><div class="card"><h2>3F Flip Tracker</h2><p class="mut">Couldn't load data: ${esc(err.error.message)}</p><button class="p" onclick="location.reload()">Try again</button></div></main>`; return; }
@@ -181,14 +182,14 @@ async function load() {
   const C = {}, U = {};
   (costs.data||[]).forEach(c => (C[c.house_id] = C[c.house_id] || []).push(c));
   (hist.data||[]).forEach(u => (U[u.house_id] = U[u.house_id] || []).push(u));
-  D = { S: sum.data, H: dash.data || [], W: sched.data || [], C, U, user };
+  D = { S: sum.data, H: dash.data || [], W: sched.data || [], C, U, user, G: gaps.data || [] };
   shell();
 }
 
 // ---------- layout ----------
 function shell() {
   const sold = D.H.filter(h => h.stage === 'Sold').length;
-  const tabs = [['overview','Pipeline'],['cash','Cash & Closings'],['houses','All active ('+D.H.filter(h=>h.stage!=='Sold').length+')'],['sold','Sold ('+sold+')']];
+  const tabs = [['overview','Pipeline'],['cash','Cash & Closings'],['houses','All active ('+D.H.filter(h=>h.stage!=='Sold').length+')'],['sold','Sold ('+sold+')'],['missing','Missing info ('+D.G.reduce((a,g) => a + (n(g.missing_count)||0), 0)+')']];
   root.innerHTML = `<header><h1>3F Homes Flip Tracker</h1><span class="sm" style="opacity:.75">Data as of ${stamp(D.S.data_as_of)} · refreshes 7 AM + 5 PM</span><span class="sp"></span>
     <span class="sm">Signed in as <b>${esc(D.user?.email || '')}</b></span><button id="so">Sign out</button></header>
     <nav>${tabs.map(([k,l]) => `<button data-t="${k}" class="${k===TAB?'on':''}">${l}</button>`).join('')}</nav>
@@ -200,6 +201,7 @@ function shell() {
   m.innerHTML = TAB === 'overview' ? kpis() + pipeline() + GROUPS.map(([g, title, keyLbl, keyCol]) => housesTable(grp(g), title, { keyLbl, keyCol, isSold: g === 'Sold' })).join('')
              : TAB === 'cash' ? kpis() + cashSection(false)
              : TAB === 'houses' ? housesTable(D.H.filter(h => h.stage !== 'Sold'), 'All active houses', { showStage: true })
+             : TAB === 'missing' ? missingTable()
              : housesTable(D.H.filter(h => h.stage === 'Sold'), 'Sold', { isSold: true, keyLbl: 'Sold', keyCol: 'sale_close_date' });
   const unread = n(D.S.unread_updates) || 0;
   m.insertAdjacentHTML('beforeend', `<div class="foot">Data as of ${stamp(D.S.data_as_of)}${unread ? `<div style="margin-top:4px">${unread} update${unread>1?'s':''} from Rob couldn't be read</div>` : ''}</div>`);
@@ -234,7 +236,7 @@ function kpis() {
     ${k(money(S.total_cash_in), `total cash in (active)${over ? ` · ${over} over reno budget` : ''}`)}
     ${k(money(S.projected_profit_active), 'projected profit, all active houses')}
     ${k(money(S.realized_profit_ytd), `realized profit · ${soldYtd} sold this year`)}
-  </div>${unf.length ? `<p class="sm" style="margin:-6px 0 14px"><span class="chip bad">${unf.length} not funded</span> ${unf.map(h => esc(h.address) + ' closes ' + md(h.purchase_close_date)).join(' · ')}</p>` : ''}`;
+  </div>${unf.length ? `<p class="sm" style="margin:-6px 0 14px"><span class="chip bad">${unf.length} not confirmed funded</span> ${unf.map(h => esc(h.address) + ' closes ' + md(h.purchase_close_date)).join(' · ')}</p>` : ''}`;
 }
 
 function cashSection(compact) {
@@ -249,7 +251,7 @@ function cashSection(compact) {
       <td class="b">${esc(h.address)}</td><td>${dow(h.purchase_close_date)}</td><td class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)}</td>
       <td class="r">${money(h.purchase_price)}</td><td class="r">${money(h.loan_amount)}${h.lender?`<div class="sm mut">${esc(h.lender)}</div>`:''}</td><td class="r">${money(h.earnest_money_paid)}</td><td class="r">${money(h.est_buy_closing_costs)}</td>
       <td class="r big">${money(h.cash_to_close)}${h.cash_to_close_exact?'<div class="sm mut" style="font-weight:400">exact from Rob</div>':''}</td>
-      <td><span class="chip ${h.funded?'ok':(h.closing_flag==='red'?'bad':h.closing_flag==='amber'?'warn':'')}">${h.funded?'Funded':'Not funded'}</span></td></tr>`).join('')}
+      <td><span class="chip ${h.funded?'ok':(h.closing_flag==='red'?'bad':h.closing_flag==='amber'?'warn':'')}">${h.funded?'Funded':h.funded===false?'Not funded':'Funding unknown'}</span></td></tr>`).join('')}
     ${buying.length > 1 ? `<tr class="tot"><td>Total</td><td colspan="6"></td><td class="r big">${money(totCtc)}</td><td></td></tr>` : ''}
     </tbody></table></div>` : '<div class="empty">No houses under contract.</div>';
 
@@ -276,6 +278,14 @@ function cashSection(compact) {
     <div><div class="card"><h2>Upcoming sale closings <span class="chip">${selling.length}</span></h2>${sellTable}</div>${netCard}</div></div>`;
 }
 
+const FIELD_LBL = {purchase_price:'Purchase price',purchase_close_date:'Purchase closing date',funded:'Funded?',loan_amount:'Loan amount (or 0 = cash)',est_buy_closing_costs:'Buy closing costs',reno_scope:'Reno scope',reno_start_date:'Reno start',reno_end_date:'Reno end',target_sale_price:'Sale / list price',list_date:'List date',sale_contract_date:'Sale contract date',sale_close_date:'Sale closing date',sale_price:'Final sale price',est_sell_closing_costs:'Seller closing costs',loan_payoff:'Loan payoff',sale_splits:'Sale split'};
+function missingTable() {
+  const g = D.G.slice().sort((a,b) => a.stage_no - b.stage_no || (b.missing_count - a.missing_count));
+  return `<div class="card"><h2>What we're still missing <span class="chip warn">${g.reduce((a,x) => a + (n(x.missing_count)||0), 0)}</span><span class="sp"></span><span class="sm mut" style="font-weight:400">Rob's Claude reads this same list and fills it in by 3F UPDATE email</span></h2><div class="tw"><table><thead><tr><th>Address</th><th>Stage</th><th>Missing</th></tr></thead><tbody>
+    ${g.map(x => `<tr class="row" data-id="${x.id}"><td class="b">${esc(x.address)}</td><td><span class="chip ${STAGE_CHIP[x.stage]||''}">${esc(x.stage)}</span></td>
+      <td>${(x.missing||[]).length ? (x.missing||[]).map(m => `<span class="chip warn" title="${esc(m.why)}" style="margin:2px 4px 2px 0">${esc(FIELD_LBL[m.field] || m.field)}</span>`).join('') : '<span class="chip ok">complete</span>'}</td></tr>`).join('')}
+    </tbody></table></div></div>`;
+}
 const buyIn = h => (n(h.purchase_price)||0) + (n(h.est_buy_closing_costs)||0);
 function prog(h) { return `<span class="prog" title="${esc(h.stage)}">${STAGES.map((s,i) => `<i class="${i+1 <= h.stage_no ? 'd' : ''}"></i>`).join('')}</span>`; }
 
@@ -299,7 +309,7 @@ function housesTable(list, title, o = {}) {
       const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : 0, chg = n(h.profit_change);
       return `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td>
         ${o.showStage?`<td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td>`:''}
-        ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':'not funded'}</div>` : ''}${o.keyCol==='sale_close_date' && h.stage!=='Sold' ? (h.sale_close_date ? `<div class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - pd(new Date().toISOString().slice(0,10))) / 864e5))}</div>` : `<div class="sm mut">${h.stage==='Listed' ? 'listed, no contract' : 'no date yet'}</div>`) : ''}</td>`:''}
+        ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':h.funded===false?'not funded':'funding unknown'}</div>` : ''}${o.keyCol==='sale_close_date' && h.stage!=='Sold' ? (h.sale_close_date ? `<div class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - pd(new Date().toISOString().slice(0,10))) / 864e5))}</div>` : `<div class="sm mut">${h.stage==='Listed' ? 'listed, no contract' : 'no date yet'}</div>`) : ''}</td>`:''}
         <td>${prog(h)}</td>
         <td class="r">${money(buyIn(h))}</td>
         <td class="r">${money(h.reno_scope)}</td>
@@ -329,7 +339,7 @@ function openHouse(id) {
     <div class="timeline">${tl}</div>
     <div class="facts">
       <div><span>Purchase</span><b>${money(h.purchase_price)}</b></div><div><span>Loan${h.lender?' · '+esc(h.lender):''}</span><b>${money(h.loan_amount)}</b></div>
-      <div><span>Cash to close</span><b>${money(h.cash_to_close)}</b></div><div><span>Funded</span><b>${h.funded?'Yes':'No'}</b></div>
+      <div><span>Cash to close</span><b>${money(h.cash_to_close)}</b></div><div><span>Funded</span><b>${h.funded?'Yes':h.funded===false?'No':'Unknown'}</b></div>
       <div><span>Reno scope</span><b>${money(h.reno_scope)}</b></div><div><span>Reno spent</span><b>${money(spent,'$0')}</b></div>
       <div><span>Other costs</span><b>${money(h.other_costs,'$0')}</b></div><div><span>Total cash in</span><b>${money(h.total_cash_in)}</b></div>
       <div><span>Target sale</span><b>${money(h.target_sale_price)}</b></div><div><span>Actual sale</span><b>${money(h.sale_price)}</b></div>
