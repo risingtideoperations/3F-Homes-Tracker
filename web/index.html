@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>3F Flip Tracker</title>
+<style>
+:root{
+  --bg:#f5f5f7; --card:#ffffff; --ink:#1d1d1f; --ink2:#6e6e73; --ink3:#a1a1a6; --line:#e5e5ea;
+  --blue:#0071e3; --green:#248a3d; --amber:#b25000; --red:#d70015;
+  --green-bg:#e3f5e8; --amber-bg:#fff2e0; --red-bg:#ffe5e8; --grey-bg:#f0f0f3;
+  --track:#e8e8ed; --shadow:0 1px 2px rgba(0,0,0,.04),0 6px 24px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#000000; --card:#1c1c1e; --ink:#f5f5f7; --ink2:#a1a1a6; --ink3:#6e6e73; --line:#2c2c2e;
+    --blue:#2997ff; --green:#30d158; --amber:#ff9f0a; --red:#ff453a;
+    --green-bg:rgba(48,209,88,.16); --amber-bg:rgba(255,159,10,.16); --red-bg:rgba(255,69,58,.18); --grey-bg:#2c2c2e;
+    --track:#2c2c2e; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#000000; --card:#1c1c1e; --ink:#f5f5f7; --ink2:#a1a1a6; --ink3:#6e6e73; --line:#2c2c2e;
+  --blue:#2997ff; --green:#30d158; --amber:#ff9f0a; --red:#ff453a;
+  --green-bg:rgba(48,209,88,.16); --amber-bg:rgba(255,159,10,.16); --red-bg:rgba(255,69,58,.18); --grey-bg:#2c2c2e;
+  --track:#2c2c2e; --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;font-size:15px;line-height:1.4;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:8px 0 2px}
+.sub{color:var(--ink2);font-size:14px;margin-bottom:20px}
+h2{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:32px 0 10px}
+h3{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);margin:22px 0 8px}
+.card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tile .lbl{font-size:12px;color:var(--ink2);font-weight:500}
+.tile .val{font-size:28px;font-weight:700;margin-top:4px}
+.tile:first-child{grid-column:1/-1}
+.tile:first-child .val{font-size:40px}
+@media (min-width:640px){.tiles{grid-template-columns:repeat(5,1fr)}.tile:first-child{grid-column:auto}.tile:first-child .val,.tile .val{font-size:24px}}
+.list>.row{padding:14px 0;border-top:1px solid var(--line)}
+.list>.row:first-child{border-top:0;padding-top:2px}
+.list>.row:last-child{padding-bottom:2px}
+.rowtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.addr{font-weight:600;font-size:17px}
+.muted{color:var(--ink2)}
+.small{font-size:13px}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-green{background:var(--green-bg);color:var(--green)}
+.p-amber{background:var(--amber-bg);color:var(--amber)}
+.p-red{background:var(--red-bg);color:var(--red)}
+.p-grey{background:var(--grey-bg);color:var(--ink2)}
+.p-blue{background:var(--grey-bg);color:var(--blue)}
+.flag-red,.flag-amber{margin:0 -16px;padding-left:16px!important;padding-right:16px!important}
+.flag-red{box-shadow:inset 4px 0 0 var(--red);background:var(--red-bg)}
+.flag-amber{box-shadow:inset 4px 0 0 var(--amber)}
+.list>.row.flag-red:first-child{padding-top:14px;margin-top:-16px;border-radius:18px 18px 0 0}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;margin-top:10px;font-size:13px}
+.kv div span{display:block;color:var(--ink2);font-size:12px}
+.kv div b{font-weight:600}
+.ctc{margin-top:10px;display:flex;justify-content:space-between;align-items:flex-end}
+.ctc .big{font-size:32px;font-weight:700}
+.ctc .lbl{font-size:12px;color:var(--ink2);font-weight:600;letter-spacing:.03em}
+.bars{display:flex;gap:6px;align-items:flex-end;height:120px;margin-top:6px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.bar .stack{width:100%;max-width:44px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:7px;overflow:hidden;background:var(--track)}
+.bar .seg-p{background:var(--blue)}
+.bar .seg-r{background:var(--amber)}
+.bar .amt{font-size:10px;color:var(--ink2);margin-bottom:3px;white-space:nowrap}
+.bar .wk{font-size:10px;color:var(--ink3);margin-top:4px;white-space:nowrap}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink2);margin-top:10px;flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:0}
+.netline{margin-top:14px;font-size:15px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.netline b{font-size:22px}
+.pos{color:var(--green)} .neg{color:var(--red)}
+.house{margin-top:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.house:active{transform:scale(.995)}
+.dots{display:flex;margin:16px 0 4px;position:relative}
+.dot{flex:1;text-align:center;position:relative;font-size:10px;color:var(--ink3)}
+.dot:before{content:"";position:absolute;top:6px;left:-50%;width:100%;height:2px;background:var(--track);z-index:0}
+.dot:first-child:before{display:none}
+.dot.done:before{background:var(--blue)}
+.dot i{position:relative;z-index:1;display:block;margin:0 auto 5px;width:14px;height:14px;border-radius:50%;background:var(--card);border:2px solid var(--track)}
+.dot.done i{background:var(--blue);border-color:var(--blue)}
+.dot.cur i{box-shadow:0 0 0 4px var(--grey-bg)}
+.dot .nm{display:block;color:var(--ink2);font-weight:500}
+.dot.done .nm{color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px;margin-top:14px}
+.stats div span{display:block;font-size:11px;color:var(--ink2)}
+.stats div b{font-size:16px;font-weight:600}
+.stats .profit{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:10px}
+.stats .profit b{font-size:26px;font-weight:700}
+@media (min-width:640px){.stats{grid-template-columns:repeat(6,1fr)}}
+.budget{margin-top:12px}
+.track{height:8px;border-radius:99px;background:var(--track);overflow:hidden}
+.fill{height:100%;border-radius:99px}
+.budget .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-top:5px}
+.lastup{margin-top:12px;font-size:13px;color:var(--ink2)}
+.detail{display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.house.open .detail{display:block}
+.chev{color:var(--ink3);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}
+td.r{text-align:right;white-space:nowrap;padding-left:10px}
+.empty{color:var(--ink2);font-size:14px;padding:6px 0}
+details.sold{margin-top:24px}
+details.sold summary{font-size:21px;font-weight:700;cursor:pointer;list-style:none;padding:6px 0}
+details.sold summary::-webkit-details-marker{display:none}
+footer{margin-top:36px;text-align:center;font-size:12px;color:var(--ink3)}
+footer .warn{color:var(--ink2);margin-top:4px}
+.login{max-width:380px;margin:12vh auto 0;text-align:center}
+.login input{width:100%;font:inherit;font-size:17px;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);margin-top:18px}
+.login button,.btn{width:100%;font:inherit;font-size:17px;font-weight:600;padding:14px;border:0;border-radius:14px;background:var(--blue);color:#fff;margin-top:10px;cursor:pointer}
+.link{background:none;border:0;color:var(--blue);font:inherit;font-size:13px;cursor:pointer;padding:0}
+.top{display:flex;justify-content:space-between;align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="login"><p class="muted">Loading…</p></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://csdsendpbnwycwhqwgbe.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_qaWJRfkSsEkkIBw-idLhFA_4LhrcwBf';
+// Sandboxed hosts (n8n webhook pages) block localStorage; fall back to memory so sign-in still works per visit.
+const mem = {};
+let store;
+try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); store = localStorage; }
+catch { store = { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; }, removeItem: k => { delete mem[k]; } }; }
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storage: store, lock: async (_n, _t, fn) => await fn(), persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+const db = sb.schema('flips');
+const app = document.getElementById('app');
+const STAGES = ['Under Contract','Closed','Renovating','Listed','Sale Pending','Sold'];
+const STAGE_DATE = ['under_contract_date','purchase_close_date','reno_start_date','list_date','sale_contract_date','sale_close_date'];
+const STAGE_PILL = {'Under Contract':'p-blue','Closed':'p-grey','Renovating':'p-amber','Listed':'p-blue','Sale Pending':'p-green','Sold':'p-green'};
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const n = v => (v === null || v === undefined || v === '') ? null : Number(v);
+const money = (v, dash='—') => { v = n(v); if (v === null || isNaN(v)) return dash; const s = Math.round(Math.abs(v)).toLocaleString('en-US'); return (v < 0 ? '−$' : '$') + s; };
+const kmoney = v => { v = n(v) || 0; const a = Math.abs(v); const s = a >= 1e6 ? (a/1e6).toFixed(1)+'M' : a >= 1e4 ? Math.round(a/1e3)+'k' : a >= 1e3 ? (a/1e3).toFixed(1)+'k' : Math.round(a)+''; return (v<0?'−$':'$')+s; };
+const pd = s => { if (!s) return null; const [y,m,d] = String(s).slice(0,10).split('-').map(Number); return new Date(y, m-1, d); };
+const md = s => { const d = pd(s); return d ? (d.getMonth()+1)+'/'+d.getDate() : ''; };
+const mdy = s => { const d = pd(s); return d ? d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—'; };
+const countdown = days => { days = n(days); if (days === null) return ''; if (days === 0) return 'today'; if (days === 1) return 'tomorrow'; if (days < 0) return Math.abs(days)+' days ago'; return 'in '+days+' days'; };
+const stamp = s => s ? new Date(s).toLocaleString('en-US',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
+
+// ---------- sign-in ----------
+function loginScreen(msg) {
+  app.innerHTML = `<div class="login">
+    <h1>3F Flip Tracker</h1>
+    <p class="muted">Enter your email and we'll send you a sign-in link.</p>
+    <form id="lf"><input id="em" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required>
+    <button type="submit" id="lb">Email me a link</button></form>
+    <p class="muted small" id="lm">${esc(msg || '')}</p></div>`;
+  document.getElementById('lf').onsubmit = async e => {
+    e.preventDefault();
+    const b = document.getElementById('lb'), m = document.getElementById('lm');
+    b.disabled = true; b.textContent = 'Sending…';
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/flips-login', { method:'POST',
+        headers:{'content-type':'application/json', apikey: SUPABASE_KEY},
+        body: JSON.stringify({ email: document.getElementById('em').value }) });
+      const j = await r.json().catch(() => ({}));
+      m.textContent = r.ok ? 'If that email has access, a link is on its way. Open it on this device.' : (j.error || 'Something went wrong. Try again.');
+    } catch { m.textContent = 'Network error. Try again.'; }
+    b.disabled = false; b.textContent = 'Email me a link';
+  };
+}
+
+async function boot() {
+  const th = new URLSearchParams(location.hash.slice(1)).get('th');
+  if (th) {
+    history.replaceState(null, '', location.pathname);
+    const { error } = await sb.auth.verifyOtp({ token_hash: th, type: 'email' });
+    if (error) return loginScreen('That link expired or was already used. Send a new one.');
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return loginScreen();
+  load();
+}
+
+// ---------- data ----------
+async function load() {
+  const [sum, dash, sched, costs, hist] = await Promise.all([
+    db.from('summary').select('*').maybeSingle(),
+    db.from('dashboard').select('*'),
+    db.from('cash_schedule').select('*').order('week_no'),
+    db.from('costs').select('house_id,txn_date,vendor,memo,amount').not('house_id','is',null).order('txn_date',{ascending:false}),
+    db.from('house_history').select('house_id,received_at,note,status').order('received_at',{ascending:false})
+  ]);
+  const err = [sum,dash,sched,costs,hist].find(r => r.error);
+  if (err) { app.innerHTML = `<div class="login"><h1>3F Flip Tracker</h1><p class="muted">Couldn't load data: ${esc(err.error.message)}</p><button class="btn" onclick="location.reload()">Try again</button></div>`; return; }
+  const houses = dash.data || [];
+  if (!sum.data || (!houses.length && n(sum.data.houses_active) === 0 && !sum.data.data_as_of)) {
+    const { data: { user } } = await sb.auth.getUser();
+    app.innerHTML = `<div class="login"><h1>3F Flip Tracker</h1><p class="muted">${esc(user?.email || 'This account')} doesn't have access.</p><button class="btn" id="so">Sign out</button></div>`;
+    document.getElementById('so').onclick = async () => { await sb.auth.signOut(); loginScreen(); };
+    return;
+  }
+  render(sum.data, houses, sched.data || [], costs.data || [], hist.data || []);
+}
+
+// ---------- render ----------
+function render(S, H, W, C, U) {
+  const cashNeed30 = (n(S.cash_to_close_30)||0) + (n(S.reno_out_30)||0);
+  const net30 = (n(S.sale_in_30)||0) - (n(S.cash_to_close_30)||0) - (n(S.reno_out_30)||0);
+  const buying = H.filter(h => h.stage === 'Under Contract').sort((a,b) => (a.purchase_close_date||'9').localeCompare(b.purchase_close_date||'9'));
+  const selling = H.filter(h => h.stage !== 'Sold' && h.sale_close_date).sort((a,b) => a.sale_close_date.localeCompare(b.sale_close_date));
+  const active = H.filter(h => h.stage !== 'Sold').sort((a,b) => a.stage_no - b.stage_no || (a.address||'').localeCompare(b.address||''));
+  const sold = H.filter(h => h.stage === 'Sold').sort((a,b) => (b.sale_close_date||'').localeCompare(a.sale_close_date||''));
+
+  const tiles = [
+    ['Cash needed next 30 days', money(cashNeed30)],
+    ['Houses active', S.houses_active],
+    ['Total cash in', money(S.total_cash_in)],
+    ['Projected profit', money(S.projected_profit_active)],
+    ['Realized profit YTD', money(S.realized_profit_ytd)]
+  ].map(([l,v]) => `<div class="card tile"><div class="lbl">${l}</div><div class="val num">${v}</div></div>`).join('');
+
+  const buyRows = buying.length ? buying.map(h => {
+    const flag = h.closing_flag === 'red' ? 'flag-red' : h.closing_flag === 'amber' ? 'flag-amber' : '';
+    return `<div class="row ${flag}">
+      <div class="rowtop"><div><div class="addr">${esc(h.address)}</div>
+        <div class="small ${h.closing_flag==='red'?'neg':'muted'}">Closes ${mdy(h.purchase_close_date)} · ${countdown(h.days_to_purchase_close)}</div></div>
+        <span class="pill ${h.funded?'p-green':(h.closing_flag==='red'?'p-red':h.closing_flag==='amber'?'p-amber':'p-grey')}">${h.funded?'Funded':'Not funded'}</span></div>
+      <div class="kv num"><div><span>Purchase price</span><b>${money(h.purchase_price)}</b></div><div><span>Loan${h.lender?' · '+esc(h.lender):''}</span><b>${money(h.loan_amount)}</b></div>
+        <div><span>Earnest money paid</span><b>${money(h.earnest_money_paid)}</b></div><div><span>Est. closing costs</span><b>${money(h.est_buy_closing_costs)}</b></div></div>
+      <div class="ctc"><div class="lbl">CASH TO CLOSE${h.cash_to_close_exact?' · from Rob':''}</div><div class="big num">${money(h.cash_to_close)}</div></div></div>`;
+  }).join('') : '<div class="empty">No houses under contract.</div>';
+
+  const maxOut = Math.max(1, ...W.map(w => (n(w.purchase_out)||0) + (n(w.reno_out)||0)));
+  const bars = W.map(w => {
+    const p = n(w.purchase_out)||0, r = n(w.reno_out)||0, t = p + r;
+    const h = t ? Math.max(4, Math.round(t / maxOut * 88)) : 2;
+    return `<div class="bar" title="Week of ${md(w.week_start)}: purchases ${money(p)}, reno ${money(r)}, sales in ${money(w.sale_in)}">
+      <div class="amt num">${t ? kmoney(t) : ''}</div>
+      <div class="stack" style="height:${h}%">${p?`<div class="seg-p" style="height:${p/t*100}%"></div>`:''}${r?`<div class="seg-r" style="height:${r/t*100}%"></div>`:''}</div>
+      <div class="wk">${md(w.week_start)}</div></div>`;
+  }).join('');
+  const salesIn8 = W.reduce((a,w) => a + (n(w.sale_in)||0), 0);
+
+  const sellRows = selling.length ? selling.map(h => `<div class="row">
+      <div class="rowtop"><div><div class="addr">${esc(h.address)}</div><div class="small muted">Sale closes ${mdy(h.sale_close_date)}</div></div>
+        <div style="text-align:right"><div class="small muted">Net back</div><div class="num" style="font-size:22px;font-weight:700">${money(h.est_net_proceeds)}</div></div></div>
+      <div class="kv num"><div><span>Sale price</span><b>${money(h.sale_price ?? h.target_sale_price)}</b></div><div><span>Payoff + seller costs</span><b>${money((n(h.loan_payoff ?? h.loan_amount)||0) + (n(h.est_sell_closing_costs)||0))}</b></div></div></div>`).join('')
+    : '<div class="empty">No sale closings scheduled.</div>';
+
+  const costsBy = {}; C.forEach(c => (costsBy[c.house_id] = costsBy[c.house_id] || []).push(c));
+  const histBy = {}; U.forEach(u => (histBy[u.house_id] = histBy[u.house_id] || []).push(u));
+
+  const card = h => {
+    const cur = h.stage_no;
+    const dots = STAGES.map((s,i) => { const no = i+1; const done = no <= cur;
+      return `<div class="dot ${done?'done':''} ${no===cur?'cur':''}"><i></i><span class="nm">${s.replace('Under Contract','Contract').replace('Sale Pending','Pending')}</span>${done && i>0 && h[STAGE_DATE[i]] ? md(h[STAGE_DATE[i]]) : '&nbsp;'}</div>`; }).join('');
+    const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : (spent ? 101 : 0);
+    const col = pct > 100 ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--green)';
+    const chg = n(h.profit_change);
+    const chgTxt = chg ? `<span class="small ${chg<0?'neg':'pos'}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))} since ${md(h.prev_profit_at)}</span>` : '';
+    const cl = costsBy[h.id] || [], hl = histBy[h.id] || [];
+    return `<div class="card house" data-id="${h.id}">
+      <div class="rowtop"><div class="addr">${esc(h.address)}</div><span class="pill ${STAGE_PILL[h.stage]||'p-grey'}">${esc(h.stage)}</span></div>
+      <div class="dots">${dots}</div>
+      <div class="stats num">
+        <div><span>Purchase</span><b>${money(h.purchase_price)}</b></div>
+        <div><span>Reno scope</span><b>${money(h.reno_scope)}</b></div>
+        <div><span>Reno spent</span><b>${money(h.reno_spent,'$0')}</b></div>
+        <div><span>Total cash in</span><b>${money(h.total_cash_in)}</b></div>
+        <div><span>Target sale</span><b>${money(h.target_sale_price)}</b></div>
+        <div><span>Actual sale</span><b>${money(h.sale_price)}</b></div>
+        <div class="profit"><div><span>${h.profit_is_actual?'Profit (actual)':'Profit (projected)'}</span>${chgTxt}</div><b class="${n(h.profit)<0?'neg':''}">${money(h.profit)}</b></div>
+      </div>
+      <div class="budget"><div class="track"><div class="fill" style="width:${Math.min(100,pct)}%;background:${col}"></div></div>
+        <div class="cap num"><span>${money(spent,'$0')} of ${money(scope,'$0')} reno budget${scope?' · '+Math.round(pct)+'%':''}</span>${n(h.reno_over)>0?`<span class="neg">${money(h.reno_over)} over</span>`:''}</div></div>
+      <div class="lastup">${h.last_update_at ? `Last update from Rob: ${md(h.last_update_at)} — ${esc(h.last_update_note || 'no note')}` : 'No update from Rob yet'} <span class="chev">· details</span></div>
+      <div class="detail">
+        <h3 style="margin-top:4px">Costs (QuickBooks)</h3>
+        ${cl.length ? `<table class="num">${cl.map(c => `<tr><td>${esc(c.vendor || c.memo || 'Cost')}<div class="small muted">${md(c.txn_date)}${c.vendor && c.memo ? ' · '+esc(c.memo) : ''}</div></td><td class="r">${money(c.amount)}</td></tr>`).join('')}</table>` : '<div class="empty">No QuickBooks costs matched yet.</div>'}
+        ${n(h.other_costs) ? `<div class="small muted" style="margin-top:6px">Other costs from Rob: ${money(h.other_costs)}</div>` : ''}
+        <h3>Update history</h3>
+        ${hl.length ? `<table>${hl.map(u => `<tr><td>${esc(u.note || '—')}${u.status==='parsed_ai'?' <span class="small muted">(read by AI)</span>':''}</td><td class="r muted">${md(u.received_at)}</td></tr>`).join('')}</table>` : '<div class="empty">No updates yet.</div>'}
+      </div></div>`;
+  };
+
+  const unread = n(S.unread_updates) || 0;
+  app.innerHTML = `
+    <div class="top"><h1>3F Flip Tracker</h1><button class="link" id="so">Sign out</button></div>
+    <div class="sub">Every 3F Homes flip, from purchase contract to sale.</div>
+    <div class="tiles">${tiles}</div>
+
+    <h2>Cash &amp; Closings</h2>
+    <h3>Upcoming purchase closings</h3>
+    <div class="card list">${buyRows}</div>
+    <h3>Cash needed by week · next 8 weeks</h3>
+    <div class="card"><div class="bars">${bars}</div>
+      <div class="legend"><span><i style="background:var(--blue)"></i>Purchase closings</span><span><i style="background:var(--amber)"></i>Remaining reno</span>${salesIn8?`<span>Sales coming in: ${money(salesIn8)}</span>`:''}</div></div>
+    <h3>Upcoming sale closings</h3>
+    <div class="card list">${sellRows}</div>
+    <div class="card netline"><span class="muted">Net cash next 30 days</span><b class="num ${net30<0?'neg':'pos'}">${money(net30)}</b>
+      <div class="small muted" style="width:100%">${money(S.sale_in_30)} sale proceeds in − ${money(S.cash_to_close_30)} cash to close − ${money(S.reno_out_30)} remaining reno</div></div>
+
+    <h2>Houses</h2>
+    ${active.length ? active.map(card).join('') : '<div class="card empty">No active houses.</div>'}
+    ${sold.length ? `<details class="sold"><summary>Sold (${sold.length}) <span class="chev">▾</span></summary>${sold.map(card).join('')}</details>` : ''}
+
+    <footer>Data as of ${stamp(S.data_as_of)} · refreshes 7 AM and 5 PM
+      ${unread ? `<div class="warn">${unread} update${unread>1?'s':''} couldn't be read</div>` : ''}</footer>`;
+
+  document.getElementById('so').onclick = async () => { await sb.auth.signOut(); loginScreen(); };
+  app.querySelectorAll('.house').forEach(el => el.addEventListener('click', () => el.classList.toggle('open')));
+}
+
+boot();
+</script>
+</body>
+</html>
