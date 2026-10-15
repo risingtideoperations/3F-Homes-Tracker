@@ -162,18 +162,20 @@ async function signOut() { await sb.auth.signOut(); history.replaceState(null, '
 // ---------- data ----------
 let D = null, TAB = 'overview';
 async function load() {
-  const [sum, dash, sched, costs, hist] = await Promise.all([
+  const [sum, dash, sched, costs, hist, me] = await Promise.all([
     db.from('summary').select('*').maybeSingle(),
     db.from('dashboard').select('*'),
     db.from('cash_schedule').select('*').order('week_no'),
     db.from('costs').select('house_id,txn_date,vendor,memo,amount,qb_doc_type').not('house_id','is',null).order('txn_date',{ascending:false}),
-    db.from('house_history').select('house_id,received_at,note,status').order('received_at',{ascending:false})
+    db.from('house_history').select('house_id,received_at,note,status').order('received_at',{ascending:false}),
+    db.from('allowed_viewers').select('email', { count: 'exact', head: true })
   ]);
   const err = [sum,dash,sched,costs,hist].find(r => r.error);
   if (err) { root.innerHTML = `<main style="max-width:420px;margin-top:60px"><div class="card"><h2>3F Flip Tracker</h2><p class="mut">Couldn't load data: ${esc(err.error.message)}</p><button class="p" onclick="location.reload()">Try again</button></div></main>`; return; }
   const { data: { user } } = await sb.auth.getUser();
-  if (!sum.data || (!(dash.data||[]).length && !sum.data.data_as_of)) {
-    root.innerHTML = `<main style="max-width:420px;margin-top:60px"><div class="card"><h2>3F Flip Tracker</h2><p class="mut">${esc(user?.email || 'This account')} doesn't have access, or there's no data yet.</p><button class="s" id="so">Sign out</button></div></main>`;
+  // RLS shows allowed_viewers rows only to viewers, so a zero count means no access.
+  if (!sum.data || !me.count) {
+    root.innerHTML = `<main style="max-width:420px;margin-top:60px"><div class="card"><h2>3F Flip Tracker</h2><p class="mut">${esc(user?.email || 'This account')} doesn't have access.</p><button class="s" id="so">Sign out</button></div></main>`;
     document.getElementById('so').onclick = signOut; return;
   }
   const C = {}, U = {};
@@ -264,7 +266,7 @@ function prog(h) { return `<span class="prog" title="${esc(h.stage)}">${STAGES.m
 function housesTable(list, title, isSold) {
   list = list.slice().sort((a,b) => a.stage_no - b.stage_no || (a.address||'').localeCompare(b.address||''));
   if (isSold) list.sort((a,b) => (b.sale_close_date||'').localeCompare(a.sale_close_date||''));
-  if (!list.length) return `<div class="card"><h2>${title}</h2><div class="empty">${isSold ? 'No sold houses yet.' : 'No active houses.'}</div></div>`;
+  if (!list.length) return `<div class="card"><h2>${title}</h2><div class="empty">${isSold ? 'No sold houses yet.' : 'No houses yet. They appear after Rob\'s first "3F UPDATE" email (read at 7 AM and 5 PM).'}</div></div>`;
   const tot = k => list.reduce((a,h) => a + (n(h[k])||0), 0);
   return `<div class="card"><h2>${title} <span class="chip">${list.length}</span><span class="sp"></span><span class="sm mut" style="font-weight:400">Click a row for costs and update history</span></h2><div class="tw"><table class="num"><thead><tr>
     <th>Address</th><th>Stage</th><th>Progress</th><th class="r">Purchase</th><th class="r">Reno scope</th><th class="r">Reno spent</th><th class="r">Total cash in</th><th class="r">Target sale</th><th class="r">Actual sale</th><th class="r">${isSold?'Profit':'Profit (proj.)'}</th><th>Last update from Rob</th></tr></thead><tbody>

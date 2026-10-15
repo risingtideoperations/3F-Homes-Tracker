@@ -8,8 +8,13 @@ Read-only dashboard of every 3F Homes flip, from purchase contract to sale. View
 - **Sign-in:** same `#k=` bookmark pattern as the Collections app. Each viewer has a personal key in `flips.viewer_keys`; entering your email on the page has n8n email your link from the ops Gmail. Supabase edge function `flips-login` swaps the key for a Supabase session (`verifyOtp`), so no project auth settings were changed. Revoke someone: delete their `viewer_keys` row (and `allowed_viewers`).
 - **Feeds (n8n, 7 AM + 5 PM Central):**
   - "3F Flips — Rob email updates" (`50vLQnZUcYVFbDmG`): unread "3F UPDATE" mail from claudemastery@gmail.com / rob3fhome@gmail.com, JSON block -> `flips.apply_update()`. Haiku only when no valid JSON. Blank never overwrites. One-time unfunded-closing alert to Ryan + Cullen.
-  - QuickBooks costs: Claude routine "3F Flips — QuickBooks pull (Meridian)" (`trig_011WZ1g7bAGTJBaayDCxa8xe`, 6:52 AM + 4:52 PM CT) reads Renovation Depot invoices to "3F Homes LLC:<house>" sub-customers changed since `sync_state.qb_last_run` via the Meridian connector -> `flips.upsert_qb_costs()` -> `flips.take_snapshot()`. Needs the Meridian + Supabase connectors attached in claude.ai Routines.
-  - Backup: n8n "3F Flips — QuickBooks pull" (`wEjcUckQiC3mZtkw`, unpublished) does the same with an n8n QuickBooks OAuth credential, if one is ever connected.
+  - QuickBooks costs (6:52 AM + 4:52 PM CT): a scheduled Claude run in the session that holds the Meridian QuickBooks connector.
+    1. Meridian `query` for 3F invoices changed since `flips.sync_state.qb_last_run` (`SELECT * FROM Invoice WHERE CustomerRef IN (<3F job ids>) AND MetaData.LastUpdatedTime >= '<since>'`) to find the earliest TxnDate touched.
+    2. Meridian `fetch_quickbooks_report` general_ledger, accounts 4001 (id 1) + 4002 Markup (id 49), the 3F job customers, from that date to today, `delivery: download`, columns tx_date, txn_type, doc_num, name, memo, subt_nat_amount. Download the JSON.
+    3. `python3 -I scripts/gl_rows.py gl.json rows.json` folds each expense + its markup line into one cost row.
+    4. `python3 -I scripts/load_rows.py rows.json` upserts in whole-invoice batches, rematches, snapshots, and advances `qb_last_run`.
+    First full backfill 10/15/2026: 1,242 rows, $1,116,002.44 (matches the QuickBooks GL to the penny).
+  - Backup: n8n "3F Flips — QuickBooks pull" (`wEjcUckQiC3mZtkw`, unpublished) does the same through an n8n QuickBooks credential if one is ever connected.
 
 ## Rules baked in
 - Cost = what Renovation Depot invoices 3F (expense + markup). Vendor bills are NOT counted: they are the same dollars before markup.
