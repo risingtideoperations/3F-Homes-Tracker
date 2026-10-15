@@ -210,7 +210,7 @@ const GROUPS = [
   ['Under contract', 'Under contract to buy', 'Closing', 'purchase_close_date'],
   ['Owned, not started', 'Owned — not started yet', 'Bought', 'purchase_close_date'],
   ['In renovation', 'In renovation', 'Reno done', 'reno_end_date'],
-  ['For sale', 'For sale', 'Listed', 'list_date'],
+  ['For sale', 'For sale', 'Sale closing', 'sale_close_date'],
   ['Sold', 'Sold', 'Sold', 'sale_close_date']
 ];
 function pipeline() {
@@ -299,7 +299,7 @@ function housesTable(list, title, o = {}) {
       const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : 0, chg = n(h.profit_change);
       return `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td>
         ${o.showStage?`<td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td>`:''}
-        ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':'not funded'}</div>` : ''}</td>`:''}
+        ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':'not funded'}</div>` : ''}${o.keyCol==='sale_close_date' && h.stage!=='Sold' ? (h.sale_close_date ? `<div class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - pd(new Date().toISOString().slice(0,10))) / 864e5))}</div>` : `<div class="sm mut">${h.stage==='Listed' ? 'listed, no contract' : 'no date yet'}</div>`) : ''}</td>`:''}
         <td>${prog(h)}</td>
         <td class="r">${money(buyIn(h))}</td>
         <td class="r">${money(h.reno_scope)}</td>
