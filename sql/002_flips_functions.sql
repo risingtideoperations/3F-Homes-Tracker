@@ -83,6 +83,7 @@ begin
     end;
     if n = 0 then st := 'unparsed'; end if;
     perform flips.apply_splits(p);
+    perform flips.apply_rob_costs(p);
   elsif st not in ('error') then
     st := 'unparsed';
   end if;

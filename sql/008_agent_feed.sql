@@ -21,8 +21,10 @@ begin
     'what_this_is', '3F Homes Flip Tracker: every 3F flip from purchase contract to sale. Read-only. Fill the "missing" fields by emailing a 3F UPDATE (see how_to_update).',
     'as_of', now(),
     'how_to_update', jsonb_build_object(
-      'send_to', 'risingtideoperations@gmail.com', 'send_from', 'rob3fhome@gmail.com',
-      'subject', '3F UPDATE <date>', 'read_at', '7 AM and 5 PM Central',
+      'preferred', 'POST the same {"houses":[...]} JSON to https://risingtideoperations.app.n8n.cloud/webhook/3f-flips-update?k=<this key> with Content-Type: application/json. Applied instantly; the reply has the result and this feed refreshed.',
+      'email_backup', 'or email it: to risingtideoperations@gmail.com from rob3fhome@gmail.com, subject 3F UPDATE <date>; read at 7 AM and 5 PM Central',
+      'costs', 'per house "costs":[{"id":"your stable id","date":"YYYY-MM-DD","vendor":"...","memo":"...","amount":123.45,"category":"closing_buy|closing_sell|holding|reno|other"}] = the FULL list of costs NOT in Renovation Depot QuickBooks; items left out are removed; each category total replaces the matching single field',
+      'profit_math', 'gross_profit = sale price - purchase - buy closing - reno (QuickBooks incl. markup + your reno items) - other costs - sell closing - commissions/flat fees (sale_splits basis sale/fixed); real_profit_to_3f = gross_profit - profit shares (basis profit)',
       'body', 'One ```json fenced block: {"houses":[{"address":...,"<field>":<value>,...}]}. Only send fields you know; null never erases. Numbers plain, dates YYYY-MM-DD.',
       'stages', jsonb_build_array('Under Contract','Closed','Make-Ready','Listed As-Is','Renovating','Listed','Sale Pending','Sold'),
       'flow', 'Under Contract -> Closed -> Make-Ready (~10 days, ~$1k cleanup) -> Listed As-Is (30 days) -> if unsold: Renovating (45-60 days) -> Listed -> Sale Pending -> Sold',
@@ -36,7 +38,9 @@ begin
           'reno_scope', h.reno_scope, 'reno_spent_quickbooks_incl_markup', d.reno_spent, 'reno_start_date', h.reno_start_date, 'reno_end_date', h.reno_end_date,
           'target_sale_price', h.target_sale_price, 'list_date', h.list_date, 'sale_contract_date', h.sale_contract_date,
           'sale_close_date', h.sale_close_date, 'sale_price', h.sale_price, 'est_sell_closing_costs', h.est_sell_closing_costs,
-          'other_costs', h.other_costs, 'sale_splits', h.sale_splits,
+          'other_costs', h.other_costs, 'sale_splits', h.sale_splits, 'lender', h.lender, 'notes', h.notes,
+          'your_itemized_costs', (select jsonb_agg(jsonb_build_object('id', split_part(c.qb_txn_id, ':', 3), 'date', c.txn_date, 'vendor', c.vendor, 'memo', c.memo, 'amount', c.amount, 'category', c.category)) from flips.costs c where c.house_id = h.id and c.source = 'rob'),
+          'commissions_and_fees', d.sale_deductions, 'partner_shares', d.splits_total,
           'gross_profit', d.gross_profit, 'real_profit_to_3f', d.profit))
       ) order by d.stage_no, d.address), '[]'::jsonb)
       from flips.dashboard d join flips.houses h on h.id = d.id join flips.gaps g on g.id = d.id),

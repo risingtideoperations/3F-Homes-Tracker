@@ -314,8 +314,8 @@ function housesTable(list, title, o = {}) {
     <th class="r" title="Holding, insurance, utilities, fees: anything not invoiced by Renovation Depot">Other costs</th>
     <th class="r" title="Purchase + buy closing costs + reno scope + other costs">Budget</th>
     <th class="r">Sale price</th>
-    <th class="r" title="Sale price − all costs, before anyone's cut">Gross profit</th>
-    <th class="r" title="Commissions, fees, partner and investor shares">Splits</th>
+    <th class="r" title="Sale price − all costs − agent commissions and fees">Gross profit</th>
+    <th class="r" title="Partner / investor profit shares">Partner shares</th>
     <th class="r">Real profit</th></tr></thead><tbody>
     ${list.map(h => {
       const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : 0, chg = n(h.profit_change);
@@ -365,9 +365,10 @@ function openHouse(id) {
     <div style="margin-top:14px"><h2>Sale split · who takes what</h2>
       ${h.splits_known ? `<table class="num"><thead><tr><th>Who</th><th>How</th><th class="r">Amount</th></tr></thead><tbody>
         <tr><td>Sale price${h.sale_price?'':' (target)'}</td><td></td><td class="r">${money(h.sale_price_used)}</td></tr>
-        <tr><td class="mut">− purchase, closing costs, reno, other costs</td><td></td><td class="r mut">−${money((n(h.sale_price_used)||0) - (n(h.gross_profit)||0))}</td></tr>
-        <tr><td class="b">Gross profit</td><td></td><td class="r b">${money(h.gross_profit)}</td></tr>
-        ${(h.splits_detail||[]).map(x => `<tr><td>− ${esc(x.who || '?')}</td><td class="sm mut">${x.basis==='sale' ? x.pct+'% of sale price' : x.basis==='profit' ? x.pct+'% of profit' : 'flat'}</td><td class="r">−${money(x.dollars)}</td></tr>`).join('')}
+        <tr><td class="mut">− purchase, closing costs, reno, other costs</td><td></td><td class="r mut">−${money((n(h.sale_price_used)||0) - (n(h.profit_before_fees)||0))}</td></tr>
+        ${(h.splits_detail||[]).filter(x => x.basis !== 'profit').map(x => `<tr><td>− ${esc(x.who || '?')}</td><td class="sm mut">${x.basis==='sale' ? x.pct+'% of sale price' : 'flat'}</td><td class="r">−${money(x.dollars)}</td></tr>`).join('')}
+        <tr><td class="b">Gross profit</td><td class="sm mut">after commissions & fees</td><td class="r b">${money(h.gross_profit)}</td></tr>
+        ${(h.splits_detail||[]).filter(x => x.basis === 'profit').map(x => `<tr><td>− ${esc(x.who || '?')}</td><td class="sm mut">${x.pct}% of profit</td><td class="r">−${money(x.dollars)}</td></tr>`).join('')}
         <tr class="tot"><td>Real profit to 3F</td><td></td><td class="r big ${n(h.profit)<0?'neg':'pos'}">${money(h.profit)}</td></tr></tbody></table>`
       : '<div class="empty">Rob hasn\'t sent who takes what from this sale yet, so profit is shown before anyone else\'s cut.</div>'}</div>
     <div class="grid2" style="margin-top:14px">
