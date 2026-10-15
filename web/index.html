@@ -276,6 +276,7 @@ function cashSection(compact) {
     <div><div class="card"><h2>Upcoming sale closings <span class="chip">${selling.length}</span></h2>${sellTable}</div>${netCard}</div></div>`;
 }
 
+const buyIn = h => (n(h.purchase_price)||0) + (n(h.est_buy_closing_costs)||0);
 function prog(h) { return `<span class="prog" title="${esc(h.stage)}">${STAGES.map((s,i) => `<i class="${i+1 <= h.stage_no ? 'd' : ''}"></i>`).join('')}</span>`; }
 
 function housesTable(list, title, o = {}) {
@@ -286,9 +287,10 @@ function housesTable(list, title, o = {}) {
   const isSold = o.isSold;
   return `<div class="card"><h2>${title} <span class="chip">${list.length}</span><span class="sp"></span><span class="sm mut" style="font-weight:400">Click a row for costs, sale split and history</span></h2><div class="tw"><table class="num"><thead><tr>
     <th>Address</th>${o.showStage?'<th>Stage</th>':''}${o.keyLbl?`<th>${o.keyLbl}</th>`:''}<th>Progress</th>
-    <th class="r" title="Purchase + buy closing costs + reno spent + other costs, to date">Cost to date</th>
-    <th class="r" title="Purchase + buy closing costs + reno scope + other costs">Budget</th>
+    <th class="r" title="Purchase price + buy closing costs">Purchase (incl. closing)</th>
     <th class="r">Reno scope</th><th class="r">Reno spent</th>
+    <th class="r" title="Holding, insurance, utilities, fees: anything not invoiced by Renovation Depot">Other costs</th>
+    <th class="r" title="Purchase + buy closing costs + reno scope + other costs">Budget</th>
     <th class="r">${isSold?'Sale price':'Sale price (target)'}</th>
     <th class="r" title="Sale price − all costs, before anyone's cut">Gross profit</th>
     <th class="r" title="Commissions, fees, partner and investor shares">Splits</th>
@@ -299,15 +301,16 @@ function housesTable(list, title, o = {}) {
         ${o.showStage?`<td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td>`:''}
         ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':'not funded'}</div>` : ''}</td>`:''}
         <td>${prog(h)}</td>
-        <td class="r">${money(h.all_in_cost)}</td><td class="r">${money(h.total_budget)}</td>
+        <td class="r">${money(buyIn(h))}</td>
         <td class="r">${money(h.reno_scope)}</td>
         <td class="r" style="white-space:nowrap">${money(spent,'$0')}<span class="mbar"><i style="width:${Math.min(100,pct)}%;background:${budgetColor(pct)}"></i></span>${n(h.reno_over)>0?`<div class="sm neg">${money(h.reno_over)} over</div>`:''}</td>
+        <td class="r">${money(h.other_costs,'$0')}</td><td class="r">${money(h.total_budget)}</td>
         <td class="r">${money(h.sale_price_used)}${!h.sale_price && h.target_sale_price ? '<div class="sm mut">target</div>' : ''}</td>
         <td class="r">${money(h.gross_profit)}</td>
         <td class="r">${h.splits_known ? (n(h.splits_total) ? '−' + money(h.splits_total) : '$0') : '<span class="chip warn">need</span>'}</td>
         <td class="r"><span class="b ${n(h.profit)<0?'neg':''}">${money(h.profit)}</span>${chg?`<div class="sm ${chg<0?'neg':'pos'}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))} since ${md(h.prev_profit_at)}</div>`:''}</td>
         <td class="sm">${h.last_update_at ? `<b>${md(h.last_update_at)}</b> — ${esc(h.last_update_note || 'no note')}` : '<span class="mut">none yet</span>'}</td></tr>`; }).join('')}
-    ${list.length > 1 ? `<tr class="tot"><td>Total</td>${o.showStage?'<td></td>':''}${o.keyLbl?'<td></td>':''}<td></td><td class="r">${money(tot('all_in_cost'))}</td><td class="r">${money(tot('total_budget'))}</td><td class="r">${money(tot('reno_scope'))}</td><td class="r">${money(tot('reno_spent'))}</td><td class="r">${money(tot('sale_price_used'))}</td><td class="r">${money(tot('gross_profit'))}</td><td class="r">−${money(tot('splits_total'))}</td><td class="r">${money(tot('profit'))}</td><td></td></tr>` : ''}
+    ${list.length > 1 ? `<tr class="tot"><td>Total</td>${o.showStage?'<td></td>':''}${o.keyLbl?'<td></td>':''}<td></td><td class="r">${money(list.reduce((a,h) => a + buyIn(h), 0))}</td><td class="r">${money(tot('reno_scope'))}</td><td class="r">${money(tot('reno_spent'))}</td><td class="r">${money(tot('other_costs'))}</td><td class="r">${money(tot('total_budget'))}</td><td class="r">${money(tot('sale_price_used'))}</td><td class="r">${money(tot('gross_profit'))}</td><td class="r">−${money(tot('splits_total'))}</td><td class="r">${money(tot('profit'))}</td><td></td></tr>` : ''}
     </tbody></table></div></div>`;
 }
 
@@ -331,7 +334,7 @@ function openHouse(id) {
       <div><span>Other costs</span><b>${money(h.other_costs,'$0')}</b></div><div><span>Total cash in</span><b>${money(h.total_cash_in)}</b></div>
       <div><span>Target sale</span><b>${money(h.target_sale_price)}</b></div><div><span>Actual sale</span><b>${money(h.sale_price)}</b></div>
       <div><span>Buy / sell closing costs</span><b>${money(h.est_buy_closing_costs,'$0')} / ${money(h.est_sell_closing_costs,'$0')}</b></div>
-      <div><span>Cost to date / budget</span><b>${money(h.all_in_cost)} / ${money(h.total_budget)}</b></div>
+      <div><span>Purchase incl. closing</span><b>${money(buyIn(h))}</b></div><div><span>Budget</span><b>${money(h.total_budget)}</b></div>
       <div><span>Gross profit</span><b>${money(h.gross_profit)}</b></div>
       <div><span>${h.profit_is_actual?'Real profit to 3F (actual)':'Real profit to 3F (projected)'}</span><b class="${n(h.profit)<0?'neg':'pos'}" style="font-size:22px">${money(h.profit)}</b>${chg?`<div class="sm ${chg<0?'neg':'pos'}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))} since ${md(h.prev_profit_at)}</div>`:''}</div>
     </div>
