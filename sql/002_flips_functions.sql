@@ -82,6 +82,7 @@ begin
       return jsonb_build_object('ok', false, 'status', 'error', 'error', sqlerrm);
     end;
     if n = 0 then st := 'unparsed'; end if;
+    perform flips.apply_splits(p);
   elsif st not in ('error') then
     st := 'unparsed';
   end if;

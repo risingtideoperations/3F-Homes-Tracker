@@ -35,7 +35,7 @@ main{padding:14px 16px;max-width:1400px;margin:0 auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
 td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
-th.r,td.r{text-align:right}
+th.r,td.r{text-align:right;white-space:nowrap}
 tr.row{cursor:pointer}tr.row:hover td{background:var(--hover)}
 tr.bad td{background:var(--badbg)}tr.warn td{background:var(--warnbg)}
 tr.tot td{font-weight:700;border-bottom:0}
@@ -188,7 +188,7 @@ async function load() {
 // ---------- layout ----------
 function shell() {
   const sold = D.H.filter(h => h.stage === 'Sold').length;
-  const tabs = [['overview','Overview'],['cash','Cash & Closings'],['houses','Houses ('+D.H.filter(h=>h.stage!=='Sold').length+')'],['sold','Sold ('+sold+')']];
+  const tabs = [['overview','Pipeline'],['cash','Cash & Closings'],['houses','All active ('+D.H.filter(h=>h.stage!=='Sold').length+')'],['sold','Sold ('+sold+')']];
   root.innerHTML = `<header><h1>3F Homes Flip Tracker</h1><span class="sm" style="opacity:.75">Data as of ${stamp(D.S.data_as_of)} · refreshes 7 AM + 5 PM</span><span class="sp"></span>
     <span class="sm">Signed in as <b>${esc(D.user?.email || '')}</b></span><button id="so">Sign out</button></header>
     <nav>${tabs.map(([k,l]) => `<button data-t="${k}" class="${k===TAB?'on':''}">${l}</button>`).join('')}</nav>
@@ -196,13 +196,28 @@ function shell() {
   document.getElementById('so').onclick = signOut;
   root.querySelectorAll('nav button').forEach(b => b.onclick = () => { TAB = b.dataset.t; shell(); });
   const m = document.getElementById('main');
-  m.innerHTML = TAB === 'overview' ? kpis() + cashSection(true) + housesTable(D.H.filter(h => h.stage !== 'Sold'), 'Active houses')
+  const grp = g => D.H.filter(h => h.stage_group === g);
+  m.innerHTML = TAB === 'overview' ? kpis() + pipeline() + GROUPS.map(([g, title, keyLbl, keyCol]) => housesTable(grp(g), title, { keyLbl, keyCol, isSold: g === 'Sold' })).join('')
              : TAB === 'cash' ? kpis() + cashSection(false)
-             : TAB === 'houses' ? housesTable(D.H.filter(h => h.stage !== 'Sold'), 'Active houses')
-             : housesTable(D.H.filter(h => h.stage === 'Sold'), 'Sold', true);
+             : TAB === 'houses' ? housesTable(D.H.filter(h => h.stage !== 'Sold'), 'All active houses', { showStage: true })
+             : housesTable(D.H.filter(h => h.stage === 'Sold'), 'Sold', { isSold: true, keyLbl: 'Sold', keyCol: 'sale_close_date' });
   const unread = n(D.S.unread_updates) || 0;
   m.insertAdjacentHTML('beforeend', `<div class="foot">Data as of ${stamp(D.S.data_as_of)}${unread ? `<div style="margin-top:4px">${unread} update${unread>1?'s':''} from Rob couldn't be read</div>` : ''}</div>`);
   m.querySelectorAll('tr.row[data-id]').forEach(tr => tr.onclick = () => openHouse(+tr.dataset.id));
+}
+
+const GROUPS = [
+  ['Under contract', 'Under contract to buy', 'Closing', 'purchase_close_date'],
+  ['Owned, not started', 'Owned — not started yet', 'Bought', 'purchase_close_date'],
+  ['In renovation', 'In renovation', 'Reno done', 'reno_end_date'],
+  ['For sale', 'For sale', 'Listed', 'list_date'],
+  ['Sold', 'Sold', 'Sold', 'sale_close_date']
+];
+function pipeline() {
+  return `<div class="kpis num">${GROUPS.map(([g, title]) => { const l = D.H.filter(h => h.stage_group === g);
+    const sumP = l.reduce((a,h) => a + (n(h.profit)||0), 0);
+    return `<div class="kpi"><b>${l.length}</b><span>${esc(title)}${l.length ? ` · ${money(sumP)} ${g==='Sold'?'profit':'proj. profit'}` : ''}</span></div>`; }).join('')}</div>
+  ${n(D.S.houses_missing_splits) ? `<p class="sm" style="margin:-6px 0 14px"><span class="chip warn">${D.S.houses_missing_splits} missing sale split</span> profit shown is before anyone else's cut until Rob sends who takes what</p>` : ''}`;
 }
 
 function kpis() {
@@ -263,22 +278,36 @@ function cashSection(compact) {
 
 function prog(h) { return `<span class="prog" title="${esc(h.stage)}">${STAGES.map((s,i) => `<i class="${i+1 <= h.stage_no ? 'd' : ''}"></i>`).join('')}</span>`; }
 
-function housesTable(list, title, isSold) {
+function housesTable(list, title, o = {}) {
   list = list.slice().sort((a,b) => a.stage_no - b.stage_no || (a.address||'').localeCompare(b.address||''));
-  if (isSold) list.sort((a,b) => (b.sale_close_date||'').localeCompare(a.sale_close_date||''));
-  if (!list.length) return `<div class="card"><h2>${title}</h2><div class="empty">${isSold ? 'No sold houses yet.' : 'No houses yet. They appear after Rob\'s first "3F UPDATE" email (read at 7 AM and 5 PM).'}</div></div>`;
+  if (o.keyCol) list.sort((a,b) => (o.isSold ? -1 : 1) * String(a[o.keyCol]||'9').localeCompare(String(b[o.keyCol]||'9')));
+  if (!list.length) return `<div class="card"><h2>${title} <span class="chip">0</span></h2><div class="empty">${D.H.length ? 'None right now.' : 'No houses yet. They appear after Rob\'s first "3F UPDATE" email (read at 7 AM and 5 PM).'}</div></div>`;
   const tot = k => list.reduce((a,h) => a + (n(h[k])||0), 0);
-  return `<div class="card"><h2>${title} <span class="chip">${list.length}</span><span class="sp"></span><span class="sm mut" style="font-weight:400">Click a row for costs and update history</span></h2><div class="tw"><table class="num"><thead><tr>
-    <th>Address</th><th>Stage</th><th>Progress</th><th class="r">Purchase</th><th class="r">Reno scope</th><th class="r">Reno spent</th><th class="r">Total cash in</th><th class="r">Target sale</th><th class="r">Actual sale</th><th class="r">${isSold?'Profit':'Profit (proj.)'}</th><th>Last update from Rob</th></tr></thead><tbody>
+  const isSold = o.isSold;
+  return `<div class="card"><h2>${title} <span class="chip">${list.length}</span><span class="sp"></span><span class="sm mut" style="font-weight:400">Click a row for costs, sale split and history</span></h2><div class="tw"><table class="num"><thead><tr>
+    <th>Address</th>${o.showStage?'<th>Stage</th>':''}${o.keyLbl?`<th>${o.keyLbl}</th>`:''}<th>Progress</th>
+    <th class="r" title="Purchase + buy closing costs + reno spent + other costs, to date">Cost to date</th>
+    <th class="r" title="Purchase + buy closing costs + reno scope + other costs">Budget</th>
+    <th class="r">Reno scope</th><th class="r">Reno spent</th>
+    <th class="r">${isSold?'Sale price':'Sale price (target)'}</th>
+    <th class="r" title="Sale price − all costs, before anyone's cut">Gross profit</th>
+    <th class="r" title="Commissions, fees, partner and investor shares">Splits</th>
+    <th class="r">${isSold?'Real profit':'Real profit (proj.)'}</th><th>Last update from Rob</th></tr></thead><tbody>
     ${list.map(h => {
       const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : (spent ? 101 : 0), chg = n(h.profit_change);
-      return `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td><td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td><td>${prog(h)}</td>
-        <td class="r">${money(h.purchase_price)}</td><td class="r">${money(h.reno_scope)}</td>
+      return `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td>
+        ${o.showStage?`<td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td>`:''}
+        ${o.keyLbl?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':'not funded'}</div>` : ''}</td>`:''}
+        <td>${prog(h)}</td>
+        <td class="r">${money(h.all_in_cost)}</td><td class="r">${money(h.total_budget)}</td>
+        <td class="r">${money(h.reno_scope)}</td>
         <td class="r" style="white-space:nowrap">${money(spent,'$0')}<span class="mbar"><i style="width:${Math.min(100,pct)}%;background:${budgetColor(pct)}"></i></span>${n(h.reno_over)>0?`<div class="sm neg">${money(h.reno_over)} over</div>`:''}</td>
-        <td class="r">${money(h.total_cash_in)}</td><td class="r">${money(h.target_sale_price)}</td><td class="r">${money(h.sale_price)}</td>
+        <td class="r">${money(h.sale_price_used)}${!h.sale_price && h.target_sale_price ? '<div class="sm mut">target</div>' : ''}</td>
+        <td class="r">${money(h.gross_profit)}</td>
+        <td class="r">${h.splits_known ? (n(h.splits_total) ? '−' + money(h.splits_total) : '$0') : '<span class="chip warn">need</span>'}</td>
         <td class="r"><span class="b ${n(h.profit)<0?'neg':''}">${money(h.profit)}</span>${chg?`<div class="sm ${chg<0?'neg':'pos'}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))} since ${md(h.prev_profit_at)}</div>`:''}</td>
         <td class="sm">${h.last_update_at ? `<b>${md(h.last_update_at)}</b> — ${esc(h.last_update_note || 'no note')}` : '<span class="mut">none yet</span>'}</td></tr>`; }).join('')}
-    <tr class="tot"><td>Total</td><td></td><td></td><td class="r">${money(tot('purchase_price'))}</td><td class="r">${money(tot('reno_scope'))}</td><td class="r">${money(tot('reno_spent'))}</td><td class="r">${money(tot('total_cash_in'))}</td><td class="r">${money(tot('target_sale_price'))}</td><td class="r">${money(tot('sale_price'))}</td><td class="r">${money(tot('profit'))}</td><td></td></tr>
+    ${list.length > 1 ? `<tr class="tot"><td>Total</td>${o.showStage?'<td></td>':''}${o.keyLbl?'<td></td>':''}<td></td><td class="r">${money(tot('all_in_cost'))}</td><td class="r">${money(tot('total_budget'))}</td><td class="r">${money(tot('reno_scope'))}</td><td class="r">${money(tot('reno_spent'))}</td><td class="r">${money(tot('sale_price_used'))}</td><td class="r">${money(tot('gross_profit'))}</td><td class="r">−${money(tot('splits_total'))}</td><td class="r">${money(tot('profit'))}</td><td></td></tr>` : ''}
     </tbody></table></div></div>`;
 }
 
@@ -302,12 +331,22 @@ function openHouse(id) {
       <div><span>Other costs</span><b>${money(h.other_costs,'$0')}</b></div><div><span>Total cash in</span><b>${money(h.total_cash_in)}</b></div>
       <div><span>Target sale</span><b>${money(h.target_sale_price)}</b></div><div><span>Actual sale</span><b>${money(h.sale_price)}</b></div>
       <div><span>Buy / sell closing costs</span><b>${money(h.est_buy_closing_costs,'$0')} / ${money(h.est_sell_closing_costs,'$0')}</b></div>
-      <div><span>${h.profit_is_actual?'Profit (actual)':'Profit (projected)'}</span><b class="${n(h.profit)<0?'neg':'pos'}" style="font-size:22px">${money(h.profit)}</b>${chg?`<div class="sm ${chg<0?'neg':'pos'}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))} since ${md(h.prev_profit_at)}</div>`:''}</div>
+      <div><span>Cost to date / budget</span><b>${money(h.all_in_cost)} / ${money(h.total_budget)}</b></div>
+      <div><span>Gross profit</span><b>${money(h.gross_profit)}</b></div>
+      <div><span>${h.profit_is_actual?'Real profit to 3F (actual)':'Real profit to 3F (projected)'}</span><b class="${n(h.profit)<0?'neg':'pos'}" style="font-size:22px">${money(h.profit)}</b>${chg?`<div class="sm ${chg<0?'neg':'pos'}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))} since ${md(h.prev_profit_at)}</div>`:''}</div>
     </div>
     <div class="budget"><div class="track"><i style="width:${Math.min(100,pct)}%;background:${budgetColor(pct)}"></i></div>
       <div class="cap"><span>${money(spent,'$0')} of ${money(scope,'$0')} reno budget${scope?' · '+Math.round(pct)+'%':''}</span>${n(h.reno_over)>0?`<span class="neg b">${money(h.reno_over)} over</span>`:''}</div></div>
+    <div style="margin-top:14px"><h2>Sale split · who takes what</h2>
+      ${h.splits_known ? `<table class="num"><thead><tr><th>Who</th><th>How</th><th class="r">Amount</th></tr></thead><tbody>
+        <tr><td>Sale price${h.sale_price?'':' (target)'}</td><td></td><td class="r">${money(h.sale_price_used)}</td></tr>
+        <tr><td class="mut">− purchase, closing costs, reno, other costs</td><td></td><td class="r mut">−${money((n(h.sale_price_used)||0) - (n(h.gross_profit)||0))}</td></tr>
+        <tr><td class="b">Gross profit</td><td></td><td class="r b">${money(h.gross_profit)}</td></tr>
+        ${(h.splits_detail||[]).map(x => `<tr><td>− ${esc(x.who || '?')}</td><td class="sm mut">${x.basis==='sale' ? x.pct+'% of sale price' : x.basis==='profit' ? x.pct+'% of profit' : 'flat'}</td><td class="r">−${money(x.dollars)}</td></tr>`).join('')}
+        <tr class="tot"><td>Real profit to 3F</td><td></td><td class="r big ${n(h.profit)<0?'neg':'pos'}">${money(h.profit)}</td></tr></tbody></table>`
+      : '<div class="empty">Rob hasn\'t sent who takes what from this sale yet, so profit is shown before anyone else\'s cut.</div>'}</div>
     <div class="grid2" style="margin-top:14px">
-      <div><h2>Costs from QuickBooks <span class="chip">${cl.length}</span></h2>
+      <div><h2>Costs from QuickBooks (incl. markup) <span class="chip">${cl.length}</span></h2>
         ${vendors.length > 1 ? `<div class="sm mut" style="margin-bottom:6px">${vendors.slice(0,5).map(([v,a]) => esc(v)+' '+money(a)).join(' · ')}</div>` : ''}
         ${cl.length ? `<div class="tw" style="max-height:420px;overflow:auto"><table><thead><tr><th>Date</th><th>Vendor</th><th>Memo</th><th class="r">Amount</th></tr></thead><tbody>
           ${cl.map(c => `<tr><td>${mdy(c.txn_date)}</td><td>${esc(c.vendor || '—')}</td><td class="sm mut">${esc(c.memo || '')}</td><td class="r">${money(c.amount)}</td></tr>`).join('')}
