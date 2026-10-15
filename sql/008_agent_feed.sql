@@ -41,7 +41,7 @@ begin
       ) order by d.stage_no, d.address), '[]'::jsonb)
       from flips.dashboard d join flips.houses h on h.id = d.id join flips.gaps g on g.id = d.id),
     'quickbooks_jobs_not_in_tracker', (select coalesce(jsonb_agg(jsonb_build_object('job', qb_customer, 'renovation_depot_invoiced_incl_markup', total) order by qb_customer), '[]'::jsonb)
-      from (select qb_customer, sum(amount) total from flips.costs where house_id is null group by 1) x),
+      from (select qb_customer, sum(amount) total from flips.costs c where house_id is null and not exists (select 1 from flips.qb_job_ignore i where i.qb_customer = c.qb_customer) group by 1) x),
     'quickbooks_jobs_note', 'Renovation Depot jobs under "3F Homes LLC" with no matching house here. Say which are sold (add them as stage Sold with sale data) and which are not 3F flips.'
   );
 end $$;
