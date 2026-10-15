@@ -20,6 +20,9 @@ Read-only dashboard of every 3F Homes flip, from purchase contract to sale. View
 ## For Rob's Claude (read-only agent feed)
 `GET https://risingtideoperations.app.n8n.cloud/webhook/3f-flips-gaps?k=<key>` returns every house, what the tracker has, what's missing (`flips.gaps`) and the QuickBooks jobs not in the tracker. Keys live in `flips.agent_keys` (service-only); delete a row to revoke. The same list is the page's **Missing info** tab.
 
+### Agents that can edit
+Keys in `flips.agent_keys`: Rob's Claude, Ryan's Claude. Each can read `GET /webhook/3f-flips-gaps?k=` and write `POST /webhook/3f-flips-update?k=` (logged as `api-<name>-...` in `flips.updates`). Email route: subject starting "3F UPDATE" from rob3fhome@, claudemastery@ or risingtideoperations@ (self-sent); processed mail gets the Gmail label "3F processed" (Label_4) so it is read once.
+
 ## Rules baked in
 - Cost = what Renovation Depot invoices 3F (expense + markup). Vendor bills are NOT counted: they are the same dollars before markup.
 - QB -> house match is exact on house number + first street word. Anything else stays unmatched (`flips.costs.house_id is null`) until an exact match exists.
