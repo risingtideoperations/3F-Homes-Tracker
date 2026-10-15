@@ -38,7 +38,7 @@ const parse = node({
     name: 'Parse JSON block',
     parameters: {
       mode: 'runOnceForEachItem',
-      jsCode: "const html = $json.html || '';\nconst t = $json.text || html.replace(/<br\\s*\\/?>/gi, '\\n').replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '\"').replace(/&amp;/g, '&') || '';\nconst m = t.match(/```json\\s*([\\s\\S]*?)```/i);\nlet parsed = null;\nif (m) {\n  try {\n    const j = JSON.parse(m[1].trim());\n    if (j && Array.isArray(j.houses) && j.houses.length) parsed = j;\n  } catch (e) { /* fall through to Haiku */ }\n}\nreturn { json: {\n  email_id: $json.id,\n  received_at: $json.date || null,\n  raw_text: t.slice(0, 20000),\n  parsed,\n  status: parsed ? 'parsed' : 'needs_ai'\n} };"
+      jsCode: "const html = $json.html || '';\nconst t = $json.text || html.replace(/<br\\s*\\/?>/gi, '\\n').replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '\"').replace(/&amp;/g, '&') || '';\nconst m = t.match(/```json\\s*([\\s\\S]*?)```/i);\nlet parsed = null;\nif (m) {\n  // Mail clients hard-wrap long lines, even inside JSON strings; line breaks are never meaningful here.\n  const body = m[1].replace(/\\r?\\n/g, ' ').trim();\n  try {\n    const j = JSON.parse(body);\n    if (j && Array.isArray(j.houses) && j.houses.length) parsed = j;\n  } catch (e) { /* fall through to Haiku */ }\n}\nreturn { json: {\n  email_id: $json.id,\n  received_at: $json.date || null,\n  raw_text: t.slice(0, 20000),\n  parsed,\n  status: parsed ? 'parsed' : 'needs_ai'\n} };"
     },
     position: [480, 0]
   }
