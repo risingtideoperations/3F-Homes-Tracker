@@ -193,10 +193,10 @@ async function load() {
 // ---------- layout ----------
 function robBeat() {
   const t = D.S.last_rob_update_at;
-  if (!t) return '<span class="chip bad">No update from Rob\'s Claude yet</span>';
+  if (!t) return '<span class="chip bad">No update from Rob yet</span>';
   const hrs = (Date.now() - new Date(t).getTime()) / 36e5;
   const ago = hrs < 1 ? 'under an hour ago' : hrs < 24 ? Math.round(hrs) + ' hours ago' : Math.round(hrs / 24) + ' days ago';
-  return `<span class="chip ${hrs > 26 ? 'bad' : 'ok'}" title="Rob's Claude sends a full update twice a day">Rob's Claude updated ${ago}</span>`;
+  return `<span class="chip ${hrs > 72 ? 'bad' : 'ok'}" title="Rob sends a 3F UPDATE whenever something changes on a house; quiet days have none. Red after 3 days.">Rob's last update ${ago}</span>`;
 }
 function shell() {
   const sold = D.H.filter(h => h.stage === 'Sold').length;
