@@ -337,7 +337,7 @@ function housesTable(list, title, o = {}) {
         <td class="r">${money(h.sale_price_used)}${!h.sale_price && h.target_sale_price ? `<div class="sm mut">${h.stage==='Sold'?'':'target'}</div>` : ''}</td>
         <td class="r">${money(h.gross_profit)}</td>
         <td class="r">${h.splits_known ? (n(h.splits_total) ? '−' + money(h.splits_total) : '$0') : '<span class="chip warn">need</span>'}</td>
-        <td class="r"><span class="b ${n(h.profit)<0?'neg':''}">${money(h.profit)}</span>${chg?`<div class="sm ${chg<0?'neg':'pos'}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))} since ${md(h.prev_profit_at)}</div>`:''}</td>
+        <td class="r"><span class="b ${n(h.profit)<0?'neg':''}">${money(h.profit)}</span>${chg?`<div class="sm ${chg<0?'neg':'pos'}" style="white-space:nowrap" title="Change since ${md(h.prev_profit_at)}">${chg<0?'▼':'▲'} ${money(Math.abs(chg))}</div>`:''}</td>
 </tr>`; }).join('')}
     ${list.length > 1 ? `<tr class="tot"><td>Total</td>${o.showStage?'<td></td>':''}${o.keyLbl?'<td></td>':''}<td class="r">${money(list.reduce((a,h) => a + buyIn(h), 0))}</td><td class="r">${money(tot('reno_scope'))}</td><td class="r">${money(tot('reno_spent'))}</td><td class="r">${money(tot('other_costs'))}</td><td class="r">${money(tot('total_budget'))}</td><td class="r">${money(tot('sale_price_used'))}</td><td class="r">${money(tot('gross_profit'))}</td><td class="r">−${money(tot('splits_total'))}</td><td class="r">${money(tot('profit'))}</td></tr>` : ''}
     </tbody></table></div>`;
