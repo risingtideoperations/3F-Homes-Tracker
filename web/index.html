@@ -110,6 +110,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const n = v => (v === null || v === undefined || v === '') ? null : Number(v);
 const money = (v, dash='—') => { v = n(v); if (v === null || isNaN(v)) return dash; return (v < 0 ? '−$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US'); };
 const kmoney = v => { v = n(v) || 0; const a = Math.abs(v); const s = a >= 1e6 ? (a/1e6).toFixed(1)+'M' : a >= 1e4 ? Math.round(a/1e3)+'k' : a >= 1e3 ? (a/1e3).toFixed(1)+'k' : Math.round(a)+''; return (v<0?'−$':'$')+s; };
+const today0 = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };  // local date, not UTC
 const pd = s => { if (!s) return null; const [y,m,d] = String(s).slice(0,10).split('-').map(Number); return new Date(y, m-1, d); };
 const md = s => { const d = pd(s); return d ? (d.getMonth()+1)+'/'+d.getDate() : ''; };
 const mdy = s => { const d = pd(s); return d ? (d.getMonth()+1)+'/'+d.getDate()+'/'+String(d.getFullYear()).slice(2) : '—'; };
@@ -170,7 +171,7 @@ async function load() {
     db.from('summary').select('*').maybeSingle(),
     db.from('dashboard').select('*'),
     db.from('cash_schedule').select('*').order('week_no'),
-    db.from('costs').select('house_id,txn_date,vendor,memo,amount,qb_doc_type').not('house_id','is',null).order('txn_date',{ascending:false}),
+    db.from('costs').select('house_id,txn_date,vendor,memo,amount,qb_doc_type,category').not('house_id','is',null).order('txn_date',{ascending:false}),
     db.from('house_history').select('house_id,received_at,note,status').order('received_at',{ascending:false}),
     db.from('allowed_viewers').select('email', { count: 'exact', head: true }),
     db.from('gaps').select('id,address,stage,stage_no,missing,missing_count')
@@ -244,7 +245,7 @@ function kpis() {
   const k = (v, t, hl) => `<div class="kpi${hl?' hl':''}"><b>${v}</b><span>${t}</span></div>`;
   return `<div class="kpis num">
     ${k(money(need30), `cash needed next 30 days · ${money(S.cash_to_close_30)} to close + ${money(S.reno_out_30)} reno`, true)}
-    ${k(S.houses_active, `houses active · ${by('Under Contract')} under contract, ${by('Renovating')} renovating, ${by('Listed') + by('Sale Pending')} listed/pending`)}
+    ${k(S.houses_active, `houses active · ${by('Under Contract')} under contract, ${by('Closed') + by('Make-Ready') + by('Listed As-Is')} owned (make-ready/as-is), ${by('Renovating')} renovating, ${by('Listed') + by('Sale Pending')} listed/pending`)}
     ${k(money(S.total_cash_in), `total cash in (active)${over ? ` · ${over} over reno budget` : ''}`)}
     ${k(money(S.projected_profit_active), 'projected profit, all active houses')}
     ${k(money(S.realized_profit_ytd), `realized profit · ${soldYtd} sold this year`)}
@@ -278,8 +279,8 @@ function cashSection(compact) {
     <div class="legend"><span><i style="background:var(--blue)"></i>Purchase closings (cash to close)</span><span><i style="background:var(--amber)"></i>Remaining reno budget, spread over reno period</span><span class="pos">+ sale proceeds coming in</span></div>`;
 
   const sellTable = selling.length ? `<div class="tw"><table class="num"><thead><tr><th>Address</th><th>Sale closing</th><th class="r">Sale price</th><th class="r">Payoff</th><th class="r">Seller costs</th><th class="r">Net back</th></tr></thead><tbody>
-    ${selling.map(h => `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td><td>${dow(h.sale_close_date)} <span class="sm mut">${countdown((pd(h.sale_close_date)-pd(new Date().toISOString()))/864e5|0)}</span></td>
-      <td class="r">${money(h.sale_price ?? h.target_sale_price)}${h.sale_price?'':'<div class="sm mut">target</div>'}</td><td class="r">${money(h.loan_payoff ?? h.loan_amount)}</td><td class="r">${money(h.est_sell_closing_costs,'$0')}</td><td class="r big pos">${money(h.est_net_proceeds)}</td></tr>`).join('')}
+    ${selling.map(h => `<tr class="row" data-id="${h.id}"><td class="b">${esc(h.address)}</td><td>${dow(h.sale_close_date)} <span class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - today0()) / 864e5))}</span></td>
+      <td class="r">${money(h.sale_price ?? h.target_sale_price)}${h.sale_price?'':'<div class="sm mut">target</div>'}</td><td class="r">${/^rising tide/i.test(h.lender||'') ? '<span class="sm mut">internal</span>' : money(h.loan_payoff ?? h.loan_amount)}</td><td class="r">${money(h.est_sell_closing_costs,'$0')}</td><td class="r big pos">${money(h.est_net_proceeds)}</td></tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">No sale closings scheduled.</div>';
 
   const netCard = `<div class="card net num"><span class="mut">Net cash next 30 days</span><b class="${net30<0?'neg':'pos'}">${money(net30)}</b>
@@ -293,7 +294,7 @@ function cashSection(compact) {
 const FIELD_LBL = {purchase_price:'Purchase price',purchase_close_date:'Purchase closing date',funded:'Funded?',loan_amount:'Loan amount (or 0 = cash)',est_buy_closing_costs:'Buy closing costs',reno_scope:'Reno scope',reno_start_date:'Reno start',reno_end_date:'Reno end',target_sale_price:'Sale / list price',list_date:'List date',sale_contract_date:'Sale contract date',sale_close_date:'Sale closing date',sale_price:'Final sale price',est_sell_closing_costs:'Seller closing costs',loan_payoff:'Loan payoff',sale_splits:'Sale split'};
 function missingTable() {
   const g = D.G.slice().sort((a,b) => a.stage_no - b.stage_no || (b.missing_count - a.missing_count));
-  return `<div class="card"><h2>What we're still missing <span class="chip warn">${g.reduce((a,x) => a + (n(x.missing_count)||0), 0)}</span><span class="sp"></span><span class="sm mut" style="font-weight:400">Rob's Claude reads this same list and fills it in by 3F UPDATE email</span></h2><div class="tw"><table><thead><tr><th>Address</th><th>Stage</th><th>Missing</th></tr></thead><tbody>
+  return `<div class="card"><h2>What we're still missing <span class="chip warn">${g.reduce((a,x) => a + (n(x.missing_count)||0), 0)}</span><span class="sp"></span><span class="sm mut" style="font-weight:400">Rob sees this same list and fills it in with his 3F UPDATE emails</span></h2><div class="tw"><table><thead><tr><th>Address</th><th>Stage</th><th>Missing</th></tr></thead><tbody>
     ${g.map(x => `<tr class="row" data-id="${x.id}"><td class="b">${esc(x.address)}</td><td><span class="chip ${STAGE_CHIP[x.stage]||''}">${esc(x.stage)}</span></td>
       <td>${(x.missing||[]).length ? (x.missing||[]).map(m => `<span class="chip warn" title="${esc(m.why)}" style="margin:2px 4px 2px 0">${esc(FIELD_LBL[m.field] || m.field)}</span>`).join('') : '<span class="chip ok">complete</span>'}</td></tr>`).join('')}
     </tbody></table></div></div>`;
@@ -329,7 +330,7 @@ function housesTable(list, title, o = {}) {
       return `<tr class="row" data-id="${h.id}"><td><div class="b">${esc(h.address)}</div><div style="margin:3px 0 2px">${prog(h)}</div>
         <div class="sm mut clip" title="${esc(h.last_update_note || '')}">${h.last_update_at ? `${md(h.last_update_at)} — ${esc(h.last_update_note || 'no note')}` : 'no update from Rob yet'}</div></td>
         ${o.showStage?`<td><span class="chip ${STAGE_CHIP[h.stage]||''}">${esc(h.stage)}</span></td>`:''}
-        ${o.keyCol==='phase'?`<td>${phaseCell(h)}</td>`:''}${o.keyLbl && o.keyCol!=='phase'?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':h.funded===false?'not funded':'funding unknown'}</div>` : ''}${o.keyCol==='sale_close_date' && h.stage!=='Sold' ? (h.sale_close_date ? `<div class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - pd(new Date().toISOString().slice(0,10))) / 864e5))}</div>` : `<div class="sm mut">${h.stage==='Listed' ? 'listed, no contract' : 'no date yet'}</div>`) : ''}</td>`:''}
+        ${o.keyCol==='phase'?`<td>${phaseCell(h)}</td>`:''}${o.keyLbl && o.keyCol!=='phase'?`<td>${mdy(h[o.keyCol])}${o.keyCol==='purchase_close_date' && h.stage==='Under Contract' ? `<div class="sm ${h.closing_flag==='red'?'neg b':'mut'}">${countdown(h.days_to_purchase_close)} · ${h.funded?'funded':h.funded===false?'not funded':'funding unknown'}</div>` : ''}${o.keyCol==='sale_close_date' && h.stage!=='Sold' ? (h.sale_close_date ? `<div class="sm mut">${countdown(Math.round((pd(h.sale_close_date) - today0()) / 864e5))}</div>` : `<div class="sm mut">${h.stage==='Listed' ? 'listed, no contract' : 'no date yet'}</div>`) : ''}</td>`:''}
         <td class="r">${money(buyIn(h))}</td>
         <td class="r">${money(h.reno_scope)}</td>
         <td class="r">${money(spent,'$0')}<span class="mbar blk"><i style="width:${Math.min(100,pct)}%;background:${budgetColor(pct)}"></i></span>${scope && n(h.reno_over)>0?`<div class="sm neg">${money(h.reno_over)} over</div>`:(!scope && spent ? '<div class="sm mut">no scope yet</div>' : '')}</td>
@@ -345,7 +346,10 @@ function housesTable(list, title, o = {}) {
 
 function openHouse(id) {
   const h = D.H.find(x => x.id === id); if (!h) return;
-  const cl = D.C[id] || [], hl = D.U[id] || [];
+  // Reno spent = QuickBooks lines + Rob's reno items; Rob's closing/holding/other items are listed separately.
+  const all = D.C[id] || [], hl = D.U[id] || [];
+  const cl = all.filter(c => c.qb_doc_type !== 'From Rob' || c.category === 'reno'), ol = all.filter(c => c.qb_doc_type === 'From Rob' && c.category !== 'reno');
+  const CAT = { closing_buy: 'Buy closing', closing_sell: 'Sell closing', holding: 'Holding', other: 'Other' };
   const scope = n(h.reno_scope)||0, spent = n(h.reno_spent)||0, pct = scope ? spent/scope*100 : 0, chg = n(h.profit_change);
   const tl = STAGES.map((s,i) => { const no = i+1, done = no <= h.stage_no;
     return `<div class="${done?'d':''} ${no===h.stage_no?'c':''}"><i></i><b>${s}</b><br>${done && i>0 && h[STAGE_DATE[i]] ? mdy(h[STAGE_DATE[i]]) : '&nbsp;'}</div>`; }).join('');
@@ -379,11 +383,14 @@ function openHouse(id) {
         <tr class="tot"><td>Real profit to 3F</td><td></td><td class="r big ${n(h.profit)<0?'neg':'pos'}">${money(h.profit)}</td></tr></tbody></table>`
       : '<div class="empty">Rob hasn\'t sent who takes what from this sale yet, so profit is shown before anyone else\'s cut.</div>'}</div>
     <div class="grid2" style="margin-top:14px">
-      <div><h2>Costs from QuickBooks (incl. markup) <span class="chip">${cl.length}</span></h2>
+      <div><h2>Reno costs (QuickBooks, incl. markup) <span class="chip">${cl.length}</span></h2>
         ${vendors.length > 1 ? `<div class="sm mut" style="margin-bottom:6px">${vendors.slice(0,5).map(([v,a]) => esc(v)+' '+money(a)).join(' · ')}</div>` : ''}
         ${cl.length ? `<div class="tw" style="max-height:420px;overflow:auto"><table><thead><tr><th>Date</th><th>Vendor</th><th>Memo</th><th class="r">Amount</th></tr></thead><tbody>
           ${cl.map(c => `<tr><td>${mdy(c.txn_date)}</td><td>${esc(c.vendor || '—')}</td><td class="sm mut">${esc(c.memo || '')}</td><td class="r">${money(c.amount)}</td></tr>`).join('')}
-          <tr class="tot"><td colspan="3">Total</td><td class="r">${money(spent)}</td></tr></tbody></table></div>` : '<div class="empty">No QuickBooks costs matched to this house yet.</div>'}</div>
+          <tr class="tot"><td colspan="3">Total</td><td class="r">${money(spent)}</td></tr></tbody></table></div>` : '<div class="empty">No QuickBooks costs matched to this house yet.</div>'}
+        ${ol.length ? `<h2 style="margin-top:14px">Other costs from Rob <span class="chip">${ol.length}</span></h2><table><thead><tr><th>Date</th><th>Type</th><th>Memo</th><th class="r">Amount</th></tr></thead><tbody>
+          ${ol.map(c => `<tr><td>${mdy(c.txn_date)}</td><td>${CAT[c.category] || 'Other'}</td><td class="sm mut">${esc(c.memo || c.vendor || '')}</td><td class="r">${money(c.amount)}</td></tr>`).join('')}
+          <tr class="tot"><td colspan="3">Total</td><td class="r">${money(ol.reduce((a,c) => a + (n(c.amount)||0), 0))}</td></tr></tbody></table>` : ''}</div>
       <div><h2>Update history from Rob <span class="chip">${hl.length}</span></h2>
         ${hl.length ? `<table><tbody>${hl.map(u => `<tr><td style="width:70px"><b>${md(u.received_at)}</b></td><td>${esc(u.note || '—')}${u.status==='parsed_ai'?' <span class="chip sm">read by AI</span>':''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No updates yet.</div>'}
         ${h.notes ? `<p class="sm mut">Latest note: ${esc(h.notes)}</p>` : ''}</div>

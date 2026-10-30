@@ -3,7 +3,7 @@ d = json.load(open(sys.argv[1]))['quickbooks_response']
 lines = []
 def walk(rows):
     for r in rows:
-        if r.get('type') == 'Data':
+        if r.get('type') == 'Data' and r['ColData'][1].get('id'):  # rows without a transaction id are section totals
             c = r['ColData']
             lines.append(dict(date=c[0]['value'], type=c[1]['value'], tid=c[1].get('id'), doc=c[2]['value'],
                               cust=c[3]['value'], memo=c[4]['value'], amt=float(c[5]['value'] or 0)))
@@ -30,6 +30,7 @@ for tid, ls in by.items():
         g = next((g for g in groups if (g['l']['memo'] or '').strip() == target and not g.get('mk')), None)
         if g: g['amt'] += m['amt']; g['mk'] = 1
         else: groups.append(dict(l=m, amt=m['amt']))
+    groups = [g for g in groups if round(g['amt'], 2) != 0]  # zeroed-out lines (voided items) carry no cost
     for i, g in enumerate(groups):
         l = g['l']; house = l['cust'].split(':')[1].strip() if ':' in l['cust'] else l['cust']
         rows.append(dict(qb_txn_id=f"inv{tid}-g{i+1}", qb_doc_type=f"{l['type']} {l['doc']}".strip(), qb_customer=house,

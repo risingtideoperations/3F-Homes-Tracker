@@ -16,4 +16,5 @@ for b in batches:
     j = json.dumps(b); assert '$j$' not in j
     last = q(f"select flips.upsert_qb_costs($j${j}$j$::jsonb) r")
 print(last[:600])
-print(q("insert into flips.sync_state(key,value,updated_at) values ('qb_last_run', to_char((now() - interval '10 minutes') at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"+00:00\"'), now()) on conflict (key) do update set value=excluded.value, updated_at=now(); select flips.take_snapshot(); select count(*) n, sum(amount) total, count(*) filter (where house_id is null) unmatched from flips.costs;"))
+# No snapshot here: take it after replace_pending_charges, or just-invoiced charges are counted twice in it.
+print(q("insert into flips.sync_state(key,value,updated_at) values ('qb_last_run', to_char((now() - interval '10 minutes') at time zone 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS\"+00:00\"'), now()) on conflict (key) do update set value=excluded.value, updated_at=now(); select count(*) n, sum(amount) total, count(*) filter (where house_id is null) unmatched from flips.costs;"))

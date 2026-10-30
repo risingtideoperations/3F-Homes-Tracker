@@ -12,7 +12,7 @@ Read-only dashboard of every 3F Homes flip, from purchase contract to sale. View
     1. Meridian `query` for 3F invoices changed since `flips.sync_state.qb_last_run` (`SELECT * FROM Invoice WHERE CustomerRef IN (<3F job ids>) AND MetaData.LastUpdatedTime >= '<since>'`) to find the earliest TxnDate touched.
     2. Meridian `fetch_quickbooks_report` general_ledger, accounts 4001 (id 1) + 4002 Markup (id 49), the 3F job customers, from that date to today, `delivery: download`, columns tx_date, txn_type, doc_num, name, memo, subt_nat_amount. Download the JSON.
     3. `python3 -I scripts/gl_rows.py gl.json rows.json` folds each expense + its markup line into one cost row.
-    4. `python3 -I scripts/load_rows.py rows.json` upserts in whole-invoice batches, rematches, snapshots, and advances `qb_last_run`.
+    4. `python3 -I scripts/load_rows.py rows.json` upserts in whole-invoice batches, rematches, and advances `qb_last_run`. It does not snapshot: run `flips.take_snapshot()` after step 5, or a just-invoiced charge is counted twice in the snapshot.
     5. Charges billed to a 3F job but not invoiced yet (Renovation Depot invoices on Saturdays): Meridian `ReimburseCharge WHERE HasBeenInvoiced = false` -> `flips.replace_pending_charges()` (full list each run; rows `rc<Id>`, shown as "Not invoiced yet").
     First full backfill 10/15/2026: 1,242 rows, $1,116,002.44 (matches the QuickBooks GL to the penny).
   - Backup: n8n "3F Flips — QuickBooks pull" (`wEjcUckQiC3mZtkw`, unpublished) does the same through an n8n QuickBooks credential if one is ever connected.
@@ -29,3 +29,10 @@ Keys in `flips.agent_keys`: Rob's Claude, Ryan's Claude. Each can read `GET /web
 - `funded` can be unknown (null). Unknown still triggers the one-time 7-day alert.
 - Manual fills are logged in `flips.updates` as `manual-...`; they show in history but never as "Last update from Rob".
 - Projected profit counts the larger of reno scope and reno spent (unspent budget is still a cost). Sold houses use actual spent.
+
+## Rob's update format: extras (10/30/2026)
+- `"stage":"Cancelled"`, `"remove":true`, or a note containing "remove from tracker" takes the house off the tracker. Its QuickBooks jobs go on `qb_job_ignore`.
+- `"clear":["sale_close_date","sale_contract_date",...]` empties fields, because a blank value never overwrites. Moving from Sale Pending back to a listing clears the sale dates automatically.
+- `"as_is_price"`: in Closed, Make-Ready and Listed As-Is, profit uses this price with reno spent so far. Without it, profit uses the target (after-reno) price with the full reno scope.
+- Addresses match exactly first, then by house number and first street word ("605 Manchester Ln" = "605 Manchester Dr", "216 O'Neal" = "216 Oneal"). An unmatched address only creates a house when its stage is blank or Under Contract.
+- Every applied email stores `flips.updates.warnings`: new house, fuzzy match, no match, unknown stage, ignored fields, removals. The scheduled QuickBooks run reports them.
