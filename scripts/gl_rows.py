@@ -33,6 +33,9 @@ for tid, ls in by.items():
     groups = [g for g in groups if round(g['amt'], 2) != 0]  # zeroed-out lines (voided items) carry no cost
     for i, g in enumerate(groups):
         l = g['l']; house = l['cust'].split(':')[1].strip() if ':' in l['cust'] else l['cust']
+        # Billed to the parent "3F Homes LLC" instead of the house job: the memo starts with the address.
+        if ':' not in l['cust'] and re.match(r'^\d+\s', (l['memo'] or '')):
+            house = l['memo'].split(' - ')[0].strip()
         rows.append(dict(qb_txn_id=f"inv{tid}-g{i+1}", qb_doc_type=f"{l['type']} {l['doc']}".strip(), qb_customer=house,
                          txn_date=l['date'], vendor=vendor(l['memo']), memo=l['memo'] or None, amount=round(g['amt'], 2)))
 print('rows', len(rows), 'gl total', round(sum(l['amt'] for l in lines), 2), 'rows total', round(sum(r['amount'] for r in rows), 2), file=sys.stderr)
