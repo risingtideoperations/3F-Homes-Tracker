@@ -1,5 +1,8 @@
 import json, re, sys, collections
 d = json.load(open(sys.argv[1]))['quickbooks_response']
+# Optional 3rd arg: JSON {invoice id: house} for parent-billed ("3F Homes LLC") invoices whose lines have no address memo.
+# Build it from the invoice's LinkedTxn ReimburseCharge ids and the houses those charges were pending under.
+parent_map = json.load(open(sys.argv[3])) if len(sys.argv) > 3 else {}
 lines = []
 def walk(rows):
     for r in rows:
@@ -36,6 +39,10 @@ for tid, ls in by.items():
         # Billed to the parent "3F Homes LLC" instead of the house job: the memo starts with the address.
         if ':' not in l['cust'] and re.match(r'^\d+\s', (l['memo'] or '')):
             house = l['memo'].split(' - ')[0].strip()
+        elif ':' not in l['cust'] and tid in parent_map:
+            house = parent_map[tid]  # no address memo: house comes from the charges the invoice links to
+        elif ':' not in l['cust']:
+            print(f'WARNING: parent-billed invoice {tid} line has no house; pass it in the parent map', file=sys.stderr)
         rows.append(dict(qb_txn_id=f"inv{tid}-g{i+1}", qb_doc_type=f"{l['type']} {l['doc']}".strip(), qb_customer=house,
                          txn_date=l['date'], vendor=vendor(l['memo']), memo=l['memo'] or None, amount=round(g['amt'], 2)))
 print('rows', len(rows), 'gl total', round(sum(l['amt'] for l in lines), 2), 'rows total', round(sum(r['amount'] for r in rows), 2), file=sys.stderr)
